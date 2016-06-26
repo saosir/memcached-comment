@@ -25,6 +25,19 @@
 #include <assert.h>
 #include <pthread.h>
 
+// mc的键/值关联模块，使用hash表来管理
+// 当hash表的节点数大于hash表桶个数的1.5倍，就会rehash
+// 对hash表扩展增加桶个数，桶个数bucket呈指数增长(hashpower)
+
+// 比较关键的点就是mc通过一个单独的线程来监听
+// 需要扩展hash表消息，当收到扩展hash表消息时，不是
+// 马上加锁，一次性处理整个hash表的rehash工作，而是
+// 加锁一次，将hash_bulk_move个hash表桶下的元素进行rehash
+// 放到新的hash表中，这么做的原因主要是考虑到效率，
+// 防止当桶很多，处理hash表rehash占用cpu且和锁
+// 导致其他请求得不到处理，可以看到在下面对
+// hash的find/insert/delete操作，都会先判断是否正在扩展
+// hash表(expanding表示是否在扩展)
 static pthread_cond_t maintenance_cond = PTHREAD_COND_INITIALIZER;
 
 
@@ -111,8 +124,8 @@ static item** _hashitem_before (const char *key, const size_t nkey, const uint32
 	// 正在扩容,expand_bucket表示当前rehash到哪个桶
 
 	// 这条判断语句表示如果正在扩容,其所找的节点
-	// 所在的桶还未被扩容到新的hash表primary_hashtable那么
-	// 就从旧的hash表old_hashtable从获取
+	// 所在的桶还未被扩容到新的hash表primary_hashtable
+	// 那么就从旧的hash表old_hashtable从获取
     if (expanding &&
         (oldbucket = (hv & hashmask(hashpower - 1))) >= expand_bucket)
     {
@@ -165,6 +178,8 @@ int assoc_insert(item *it, const uint32_t hv) {
     if (expanding &&
         (oldbucket = (hv & hashmask(hashpower - 1))) >= expand_bucket)
     {
+    	// 正在扩展hash表，且节点在旧的hash表上，就对旧的
+    	// hash表操作，将节点插入
         it->h_next = old_hashtable[oldbucket];
         old_hashtable[oldbucket] = it;
     } else {
@@ -226,7 +241,7 @@ static void *assoc_maintenance_thread(void *arg) {
 			// 重新hash    键/值
             for (it = old_hashtable[expand_bucket]; NULL != it; it = next) {
                 next = it->h_next;
-
+				// 插入新表
                 bucket = hash(ITEM_key(it), it->nkey) & hashmask(hashpower);
                 it->h_next = primary_hashtable[bucket];
                 primary_hashtable[bucket] = it;
@@ -264,7 +279,7 @@ static void *assoc_maintenance_thread(void *arg) {
             slabs_rebalancer_pause(); // pthread_mutex_lock(&slabs_rebalance_lock)
             switch_item_lock_type(ITEM_LOCK_GLOBAL);
             mutex_lock(&cache_lock);
-            assoc_expand();
+            assoc_expand(); // 对关键变量初始化，开始扩展
             mutex_unlock(&cache_lock);
         }
     }
