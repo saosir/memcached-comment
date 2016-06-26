@@ -75,7 +75,9 @@ static LIBEVENT_THREAD *threads;
 /*
  * Number of worker threads that have finished setting themselves up.
  */
-static int init_count = 0;
+static int init_count = 0; // 工作线程初始化情况，
+						   // 1. master等待worker线程初始化完成
+						   // 2. 等待switch_item_lock_type切换worker线程状态完成
 static pthread_mutex_t init_lock;
 static pthread_cond_t init_cond;
 
@@ -189,14 +191,14 @@ void switch_item_lock_type(enum item_lock_types type) {
     }
 
     pthread_mutex_lock(&init_lock);
-    init_count = 0;
+    init_count = 0; // thread_init 有使用此变量，用于master等待所有worker线程初始化完成
     for (i = 0; i < settings.num_threads; i++) {
         if (write(threads[i].notify_send_fd, buf, 1) != 1) {
             perror("Failed writing to notify pipe");
             /* TODO: This is a fatal problem. Can it ever happen temporarily? */
         }
     }
-    wait_for_thread_registration(settings.num_threads);
+    wait_for_thread_registration(settings.num_threads); // 确保所有worker线程切换成功
     pthread_mutex_unlock(&init_lock);
 }
 
@@ -365,7 +367,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 }
 
 /*
- * Worker thread: main event loop
+ * Worker thread: main event loop 工作线程
  */
 static void *worker_libevent(void *arg) {
     LIBEVENT_THREAD *me = arg;
@@ -380,9 +382,10 @@ static void *worker_libevent(void *arg) {
      */
     me->item_lock_type = ITEM_LOCK_GRANULAR;
     pthread_setspecific(item_lock_type_key, &me->item_lock_type);
-
+	/* 通知master线程初始化完毕 */
     register_thread_initialized();
 
+	/* 进入事件循环*/
     event_base_loop(me->base, 0);
     return NULL;
 }
@@ -837,7 +840,7 @@ void thread_init(int nthreads, struct event_base *main_base) {
         threads[i].notify_receive_fd = fds[0];
         threads[i].notify_send_fd = fds[1];
 
-		/* 创建工作线程*/
+		/*初始化线程、连接队列、libevent的event_base*/
         setup_thread(&threads[i]);
         /* Reserve three fds for the libevent base, and two for the pipe */
         stats.reserved_fds += 5;
@@ -845,13 +848,14 @@ void thread_init(int nthreads, struct event_base *main_base) {
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
+		/* 创建工作线程*/
         create_worker(worker_libevent, &threads[i]);
     }
 
     /* Wait for all the threads to set themselves up before returning. */
 	/*使用条件变量,所有线程启动完毕才退出这里*/
     pthread_mutex_lock(&init_lock);
-    wait_for_thread_registration(nthreads);
+    wait_for_thread_registration(nthreads); /* 等待所有线程初始化完成*/
     pthread_mutex_unlock(&init_lock);
 }
 

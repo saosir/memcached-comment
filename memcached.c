@@ -5536,6 +5536,7 @@ int main (int argc, char **argv) {
         exit(EX_OSERR);
     }
     /* start up worker threads if MT mode */
+	// 创建master/worker模型，初始化多个worker线程
     thread_init(settings.num_threads, main_base);
 
     if (start_assoc_maintenance_thread() == -1) {
@@ -5626,6 +5627,7 @@ int main (int argc, char **argv) {
     drop_privileges();
 
     /* enter the event loop */
+	// 工作线程启动
     if (event_base_loop(main_base, 0) != 0) {
         retval = EXIT_FAILURE;
     }

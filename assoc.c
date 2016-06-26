@@ -217,11 +217,13 @@ static void *assoc_maintenance_thread(void *arg) {
          * hash table. */
         item_lock_global();
         mutex_lock(&cache_lock);
-
+		/* 每次只hash hash_bulk_move个桶，而不是一次性hash整个哈希表，
+		     是因为防止长期占用cache_lock，导致其他线程阻塞
+		*/
         for (ii = 0; ii < hash_bulk_move && expanding; ++ii) {
             item *it, *next;
             int bucket;
-
+			// 重新hash    键/值
             for (it = old_hashtable[expand_bucket]; NULL != it; it = next) {
                 next = it->h_next;
 
@@ -251,14 +253,15 @@ static void *assoc_maintenance_thread(void *arg) {
         if (!expanding) {
             /* finished expanding. tell all threads to use fine-grained locks */
             switch_item_lock_type(ITEM_LOCK_GRANULAR);
-            slabs_rebalancer_resume();
+            slabs_rebalancer_resume(); // pthread_mutex_unlock(&slabs_rebalance_lock)
             /* We are done expanding.. just wait for next invocation */
             mutex_lock(&cache_lock);
             started_expanding = false;
-            pthread_cond_wait(&maintenance_cond, &cache_lock);
+			// 等待通知扩展hash
+            pthread_cond_wait(&maintenance_cond, &cache_lock); 
             /* Before doing anything, tell threads to use a global lock */
             mutex_unlock(&cache_lock);
-            slabs_rebalancer_pause();
+            slabs_rebalancer_pause(); // pthread_mutex_lock(&slabs_rebalance_lock)
             switch_item_lock_type(ITEM_LOCK_GLOBAL);
             mutex_lock(&cache_lock);
             assoc_expand();
