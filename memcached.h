@@ -316,6 +316,8 @@ struct settings {
     bool maxconns_fast;     /* Whether or not to early close connections */
     bool lru_crawler;        /* Whether or not to enable the autocrawler thread */
     bool slab_reassign;     /* Whether or not slab reassignment is allowed */
+	//1开启automove功能，slab_maintenance_thread线程定时监测
+	//2每次有item被剔除，就调用slabs_reassign进行内存页重分配
     int slab_automove;     /* Whether or not to automatically move slabs */
     int hashpower_init;     /* Starting hash power level */
     bool shutdown_command; /* allow shutdown command */

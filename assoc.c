@@ -290,6 +290,7 @@ static void *assoc_maintenance_thread(void *arg) {
 
 static pthread_t maintenance_tid;
 
+/* 开启assoc expand线程*/
 int start_assoc_maintenance_thread() {
     int ret;
     char *env = getenv("MEMCACHED_HASH_BULK_MOVE");
@@ -306,7 +307,7 @@ int start_assoc_maintenance_thread() {
     }
     return 0;
 }
-
+/* 关闭assoc expand线程*/
 void stop_assoc_maintenance_thread() {
     mutex_lock(&cache_lock);
     do_run_maintenance_thread = 0;

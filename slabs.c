@@ -716,6 +716,11 @@ static void slab_rebalance_finish(void) {
  * Move to its own thread (created/destroyed as needed) once automover is more
  * complex.
  */
+
+//本函数选出最佳被踢选手，和最佳不被踢选手
+//返回1表示成功选出两位选手  
+//返回0表示没有选出，要同时选出两个选手才返回1
+
 static int slab_automove_decision(int *src, int *dst) {
     static uint64_t evicted_old[POWER_LARGEST];
     static unsigned int slab_zeroes[POWER_LARGEST];
@@ -732,23 +737,26 @@ static int slab_automove_decision(int *src, int *dst) {
     static rel_time_t next_run;
 
     /* Run less frequently than the slabmove tester. */
+	// 不能调用过于频繁，10秒一次
     if (current_time >= next_run) {
         next_run = current_time + 10;
     } else {
         return 0;
     }
-
+	//获取每一个slab的item被踢次数 
     item_stats_evictions(evicted_new);
     pthread_mutex_lock(&cache_lock);
     for (i = POWER_SMALLEST; i < power_largest; i++) {
-        total_pages[i] = slabclass[i].slabs;
+        total_pages[i] = slabclass[i].slabs; // 每个slab的内存页数
     }
     pthread_mutex_unlock(&cache_lock);
 
     /* Find a candidate source; something with zero evicts 3+ times */
     for (i = POWER_SMALLEST; i < power_largest; i++) {
-        evicted_diff = evicted_new[i] - evicted_old[i];
+        evicted_diff = evicted_new[i] - evicted_old[i];// evicted_diff大于等于0，item被踢次数是正向增长
         if (evicted_diff == 0 && total_pages[i] > 2) {
+			//evicted_diff等于0说明这个slab没有item被踢，而且  
+            //它又占有至少两个slab内存页
             slab_zeroes[i]++;
             if (source == 0 && slab_zeroes[i] >= 3)
                 source = i;
@@ -763,13 +771,16 @@ static int slab_automove_decision(int *src, int *dst) {
     }
 
     /* Pick a valid destination */
+	// 转移slab内存页需谨慎，因此这里做了防备
+    //选出连续3次都是item被踢次数最大的slab
     if (slab_winner != 0 && slab_winner == highest_slab) {
         slab_wins++;
         if (slab_wins >= 3)
             dest = slab_winner;
     } else {
+    	// 重新计数
         slab_wins = 1;
-        slab_winner = highest_slab;
+        slab_winner = highest_slab; //本次的最佳被踢选手  
     }
 
     if (source && dest) {
@@ -793,7 +804,8 @@ static void *slab_maintenance_thread(void *arg) {
 		// 客户端命令启动automove功能，使用命令slabsautomove <0|1>
 		// 客户端的这个命令只是简单地设置settings.slab_automove的值，
 		// 不做其他任何工作
-        if (settings.slab_automove == 1) {
+        if (settings.slab_automove == 1) { //启动了automove功能  
+        	// 判断是否应该进行内存页重分配
             if (slab_automove_decision(&src, &dest) == 1) {
                 /* Blind to the return codes. It will retry on its own */
                 slabs_reassign(src, dest);
@@ -916,7 +928,7 @@ static pthread_t maintenance_tid;
 static pthread_t rebalance_tid;
 
 // settings.slab_reassign == true 才会开启此功能
-// 启动了两个线程：rebalance线程和automove线程
+// 启动了两个线程：rebalance线程(slab_rebalance_thread)和automove线程(slab_maintenance_thread)
 // automove线程会自动检测是否需要进行内存页重分配
 // 如果检测到需要重分配，那么就会叫rebalance线程执行
 // 这个内存页重分配工作
