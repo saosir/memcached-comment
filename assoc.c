@@ -70,7 +70,7 @@ static bool started_expanding = false;
  * During expansion we migrate values with bucket granularity; this is how
  * far we've gotten so far. Ranges from 0 .. hashsize(hashpower - 1) - 1.
  */
-static unsigned int expand_bucket = 0;
+static unsigned int expand_bucket = 0; // 已扩展到第几个桶
 
 void assoc_init(const int hashtable_init) {
     if (hashtable_init) {
@@ -148,7 +148,7 @@ static void assoc_expand(void) {
     if (primary_hashtable) {
         if (settings.verbose > 1)
             fprintf(stderr, "Hash table expansion starting\n");
-        hashpower++;
+        hashpower++; // 指数增长
         expanding = true;
         expand_bucket = 0;
         STATS_LOCK();
@@ -162,6 +162,7 @@ static void assoc_expand(void) {
     }
 }
 
+/* 发送expand通知到expand thread*/
 static void assoc_start_expand(void) {
     if (started_expanding)
         return;
@@ -221,8 +222,9 @@ void assoc_delete(const char *key, const size_t nkey, const uint32_t hv) {
 static volatile int do_run_maintenance_thread = 1;
 
 #define DEFAULT_HASH_BULK_MOVE 1
-int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
+int hash_bulk_move = DEFAULT_HASH_BULK_MOVE; /* 扩展hash表的时候，一次轮询扩展多少个桶*/
 
+/* 扩展hash表工作线程，监听expand消息并做处理*/
 static void *assoc_maintenance_thread(void *arg) {
 
     while (do_run_maintenance_thread) {
@@ -233,7 +235,7 @@ static void *assoc_maintenance_thread(void *arg) {
         item_lock_global();
         mutex_lock(&cache_lock);
 		/* 每次只hash hash_bulk_move个桶，而不是一次性hash整个哈希表，
-		     是因为防止长期占用cache_lock，导致其他线程阻塞
+		     防止长期占用cache_lock，导致其他线程阻塞
 		*/
         for (ii = 0; ii < hash_bulk_move && expanding; ++ii) {
             item *it, *next;
@@ -272,7 +274,7 @@ static void *assoc_maintenance_thread(void *arg) {
             /* We are done expanding.. just wait for next invocation */
             mutex_lock(&cache_lock);
             started_expanding = false;
-			// 等待通知扩展hash
+			// 等待expand通知扩展hash
             pthread_cond_wait(&maintenance_cond, &cache_lock); 
             /* Before doing anything, tell threads to use a global lock */
             mutex_unlock(&cache_lock);

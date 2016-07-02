@@ -24,18 +24,25 @@
 /* powers-of-N allocation structures */
 
 typedef struct {
-    unsigned int size;      /* sizes of items  一个item的大小*/
-    unsigned int perslab;   /* how many items per slab  一个page有多少个item*/
+	//一个item的大小
+    unsigned int size;      /* sizes of items  */
+	//一个page有多少个item，部分文档以及文章将item描述为chunk，这里我从源码
+	// 角度使用item来表示一个slab中的空闲的小内存块
+    unsigned int perslab;   /* how many items per slab  */
+	// 空闲的item链表,所有slab_list中的item初始化的时候都会串联到这里
+    void *slots;           /* list of item ptrs */
+	// 空闲的item链表节点个数
+    unsigned int sl_curr;   /* total free items in list */
 
-    void *slots;           /* list of item ptrs 空闲的item链表,所有slab_list中的item初始化的时候都会串联到这里*/
-    unsigned int sl_curr;   /* total free items in list 空闲的item个数*/
-
-    unsigned int slabs;     /* how many slabs were allocated for this class slab_list使用的情况*/
-
-    void **slab_list;       /* array of slab pointers   page链表数组*/
-    unsigned int list_size; /* size of prev array  slab_list的容量*/
+	// <slab_list>元素个数slabs <= list_size
+    unsigned int slabs;     /* how many slabs were allocated for this class */
+	// <slab_list>链表数组,保存每个page
+    void **slab_list;       /* array of slab pointers */
+	// <slab_list>的数组大小slabs <= list_size
+    unsigned int list_size; /* size of prev array  */
 
     unsigned int killing;  /* index+1 of dying slab, or zero if none */
+	/* 记录分配出去的内存大小*/
     size_t requested; /* The number of requested bytes */
 } slabclass_t;
 
@@ -44,7 +51,15 @@ static size_t mem_limit = 0;
 static size_t mem_malloced = 0;
 static int power_largest;
 
-static void *mem_base = NULL;
+// 如果preallocated为true，即预先非配好整块内存，以后取内存都从mem_base指向
+// 的内存块中取，假如preallocated为false，则使用malloc进行动态分配内存，使用
+// mem_malloced记录已经分配的内存大小，以免超出mem_limit，具体请参看函数
+// memory_allocate
+
+// mem_base:内存块地址
+// mem_current:可用内存起始地址, mem_current >= mem_base
+// mem_avail:可用长度
+static void *mem_base = NULL; 
 static void *mem_current = NULL;
 static size_t mem_avail = 0;
 
@@ -92,12 +107,15 @@ unsigned int slabs_clsid(const size_t size) {
  * Determines the chunk sizes and initializes the slab class descriptors
  * accordingly.
  */
-void slabs_init(const size_t limit, const double factor, const bool prealloc) {
+void slabs_init(const size_t limit, /* 最大内存限制*/
+				  const double factor /* 每个slab中item的增长因子*/,
+				  const bool prealloc /* 是否预先分配内存*/) {
     int i = POWER_SMALLEST - 1;
     unsigned int size = sizeof(item) + settings.chunk_size;
 
     mem_limit = limit;
 
+	// 预先非配内存
     if (prealloc) {
         /* Allocate everything in a big chunk with malloc */
         mem_base = malloc(mem_limit);
@@ -115,11 +133,10 @@ void slabs_init(const size_t limit, const double factor, const bool prealloc) {
     while (++i < POWER_LARGEST && size <= settings.item_size_max / factor) {
         /* Make sure items are always n-byte aligned */
         if (size % CHUNK_ALIGN_BYTES)
-            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
-
+            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // 向上取整对齐CHUNK_ALIGN_BYTES个字节
         slabclass[i].size = size;
-        slabclass[i].perslab = settings.item_size_max / slabclass[i].size;
-        size *= factor;
+        slabclass[i].perslab = settings.item_size_max / slabclass[i].size; /* 计算一个slab的item数目*/
+        size *= factor; /* 乘以增长因子，计算下一个slab的item大小*/
         if (settings.verbose > 1) {
             fprintf(stderr, "slab class %3d: chunk size %9u perslab %7u\n",
                     i, slabclass[i].size, slabclass[i].perslab);
@@ -157,7 +174,7 @@ static void slabs_preallocate (const unsigned int maxslabs) {
        messages.  this is the most common question on the mailing
        list.  if you really don't want this, you can rebuild without
        these three lines.  */
-
+	// 预先分配，每个slab预先分配一个page
     for (i = POWER_SMALLEST; i <= POWER_LARGEST; i++) {
         if (++prealloc > maxslabs)
             return;
@@ -171,11 +188,11 @@ static void slabs_preallocate (const unsigned int maxslabs) {
 
 }
 
-
+/* 如果slab_list不足，则指数增长对应的数组*/
 static int grow_slab_list (const unsigned int id) {
     slabclass_t *p = &slabclass[id];
-    if (p->slabs == p->list_size) {
-        size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
+    if (p->slabs == p->list_size) { // 已经使用完
+        size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16; // 指数增长
         void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
         if (new_list == 0) return 0;
         p->list_size = new_size;
@@ -184,6 +201,8 @@ static int grow_slab_list (const unsigned int id) {
     return 1;
 }
 
+// 将ptr切割为等大小的item chunk，串联到slots空闲链表
+// ptr要满足对应id的slab内存页大小，一般为p->perslab*p->size
 static void split_slab_page_into_freelist(char *ptr, const unsigned int id) {
     slabclass_t *p = &slabclass[id];
     int x;
@@ -194,8 +213,8 @@ static void split_slab_page_into_freelist(char *ptr, const unsigned int id) {
 }
 
 /*
-* 添加一个slab:
-* 分配一页内存,然后切割为chunck并连接为链表
+* 添加一个slab page
+* 分配一页内存,然后切割为item并挂接到对应id的slab空闲链表slots之上
 */
 static int do_slabs_newslab(const unsigned int id) {
     slabclass_t *p = &slabclass[id];
@@ -214,14 +233,16 @@ static int do_slabs_newslab(const unsigned int id) {
     memset(ptr, 0, (size_t)len);
     split_slab_page_into_freelist(ptr, id); // 将连续内存切割为chunk,串联成链表
 
-    p->slab_list[p->slabs++] = ptr;
-    mem_malloced += len;
+    p->slab_list[p->slabs++] = ptr; // 保存内存页到slab_list，消耗一个slab_list元素
+    mem_malloced += len; // 记录已分配内存，以便获取内存分配状态
     MEMCACHED_SLABS_SLABCLASS_ALLOCATE(id);
 
     return 1;
 }
 
 /*@null@*/
+/* 在对应id的slab分配一个item chunk，size必须是小于等于item chunk的
+*/
 static void *do_slabs_alloc(const size_t size, unsigned int id) {
     slabclass_t *p;
     void *ret = NULL;
@@ -243,7 +264,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
         ret = NULL;
     } else if (p->sl_curr != 0) {
         /* return off our freelist */
-		/* 分配一个item */
+		/* 分配一个item ，从slots链表移除一个节点*/
         it = (item *)p->slots;
         p->slots = it->next;
         if (it->next) it->next->prev = 0;
@@ -252,7 +273,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     }
 
     if (ret) {
-        p->requested += size;
+        p->requested += size; /* 分配内存*/
         MEMCACHED_SLABS_ALLOCATE(size, id, p->size, ret);
     } else {
         MEMCACHED_SLABS_ALLOCATE_FAILED(size, id);
@@ -261,6 +282,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     return ret;
 }
 
+// 将ptr内存挂接到对应id的slab上
 static void do_slabs_free(void *ptr, const size_t size, unsigned int id) {
     slabclass_t *p;
     item *it;
@@ -276,12 +298,14 @@ static void do_slabs_free(void *ptr, const size_t size, unsigned int id) {
     it = (item *)ptr;
     it->it_flags |= ITEM_SLABBED;
     it->prev = 0;
-    it->next = p->slots;
+	
+	// 插到空闲item链表slots头部
+    it->next = p->slots; 
     if (it->next) it->next->prev = it;
     p->slots = it;
 
     p->sl_curr++;
-    p->requested -= size;
+    p->requested -= size; /* 返回内存*/
     return;
 }
 
@@ -382,6 +406,7 @@ static void *memory_allocate(size_t size) {
         /* We are not using a preallocated large memory chunk */
         ret = malloc(size);
     } else {
+//     	preallocated的情况，直接从mem_base中取内存
         ret = mem_current;
 
         if (size > mem_avail) {
@@ -390,9 +415,9 @@ static void *memory_allocate(size_t size) {
 
         /* mem_current pointer _must_ be aligned!!! */
         if (size % CHUNK_ALIGN_BYTES) {
-            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
+            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // 向上取整对齐CHUNK_ALIGN_BYTES
         }
-
+		// 调整mem_current指针与mem_avail大小
         mem_current = ((char*)mem_current) + size;
         if (size < mem_avail) {
             mem_avail -= size;
@@ -404,6 +429,17 @@ static void *memory_allocate(size_t size) {
     return ret;
 }
 
+/* 在对应slab下分配一个item chunck，item chunk大小肯定是大于等于size
+  * 
+  * slab下的item chunk大小都是固定的，分配的时候需要根据size计算出
+  * slab的id，确保slab下的item chunk大小大于等于size，这时候就会出现一
+  * 个问题:对内存的利用率不是100%
+  * 
+  * 假如item chunk大小为1024byte，但是需要分配900byte出去，通过900byte计
+  * 算出来的slab id落在1024byte的slab上，那么分配出去一个1024byte的item chunk，
+  * 导致剩余的124byte不能完全利用,内存利用率为87.8%，优化的
+  * 方法比较多，通常是调整命令中的factor参数
+ */
 void *slabs_alloc(size_t size, unsigned int id) {
     void *ret;
 
