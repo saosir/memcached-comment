@@ -218,6 +218,15 @@ static void split_slab_page_into_freelist(char *ptr, const unsigned int id) {
 */
 static int do_slabs_newslab(const unsigned int id) {
     slabclass_t *p = &slabclass[id];
+	// 注意这里判断slab_reassign，如果开启rebalance，那么
+	// 每个内存页大小都是item_size_max，否则为精确的
+	// 内存计算，这样做的好处是:
+	// 在需要将一个内存页从某一个slabclass_t强抢给另外
+	// 一个slabclass_t时，比较好处理。不然的话，slabclass[i]从slabclass[j] 
+	// 抢到的一个内存页可以切分为n个item，而从slabclass[k]抢到的
+	// 一个内存页却切分为m个item，而本身的一个内存页有s个item
+	// 这样的话是相当混乱的。假如毕竟统一了内存页大小，那
+	// 么无论从哪里抢到的内存页都是切分成一样多的item个数。
     int len = settings.slab_reassign ? settings.item_size_max
         : p->size * p->perslab;
     char *ptr;
@@ -475,6 +484,26 @@ void slabs_adjust_mem_requested(unsigned int id, size_t old, size_t ntotal)
     pthread_mutex_unlock(&slabs_lock);
 }
 
+// 情景:
+// 开始阶段，需要向memcached存储大量长度为1KB的数据
+// 调整之后需要存储大量10KB的数据，并且很少使用1KB数据,
+// 数据越来越多，内存开始吃紧，内存不够需要使用LRU淘汰
+// 一些10KB的item
+
+// 以上情况大量1KB的item过于浪费，因为很少访问这些item，
+// 所以即使它们超时过期，还是会占据着哈希表和LRU队列
+// 对于哈希表来说大量的僵尸item会增加哈希冲突的可能性，
+// 并且在迁移哈希表的时候也浪费cpu时间。
+
+// 使用LRU爬虫+ lru_crawler命令是可以强制干掉这些僵尸item，
+// 但干掉这些僵尸item后，它们占据的内存是归还到1KB的
+// 那些slab分配器中，1KB的slab分配器不会为10KB的item分配内存，
+// 也不会将自己空闲的内存页转移到10KB的slab当中，因此
+// 这么做达不到优化内存使用的要求
+
+// memcached提供的slab automove 和 rebalance就是用来解决上面的问题
+
+// 参考:http://blog.csdn.net/luotuo44/article/details/43015129
 static pthread_cond_t maintenance_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t slab_rebalance_cond = PTHREAD_COND_INITIALIZER;
 static volatile int do_run_slab_thread = 1;
@@ -759,6 +788,11 @@ static void *slab_maintenance_thread(void *arg) {
     int src, dest;
 
     while (do_run_slab_thread) {
+		//自动检测功能由全局变量settings.slab_automove控制 ，默认值为0
+		// $memcached -o slab_reassign,slab_automove=1开启自动检测功能
+		// 客户端命令启动automove功能，使用命令slabsautomove <0|1>
+		// 客户端的这个命令只是简单地设置settings.slab_automove的值，
+		// 不做其他任何工作
         if (settings.slab_automove == 1) {
             if (slab_automove_decision(&src, &dest) == 1) {
                 /* Blind to the return codes. It will retry on its own */
@@ -881,6 +915,11 @@ void slabs_rebalancer_resume(void) {
 static pthread_t maintenance_tid;
 static pthread_t rebalance_tid;
 
+// settings.slab_reassign == true 才会开启此功能
+// 启动了两个线程：rebalance线程和automove线程
+// automove线程会自动检测是否需要进行内存页重分配
+// 如果检测到需要重分配，那么就会叫rebalance线程执行
+// 这个内存页重分配工作
 int start_slab_maintenance_thread(void) {
     int ret;
     slab_rebalance_signal = 0;

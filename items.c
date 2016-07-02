@@ -19,16 +19,29 @@ static void item_link_q(item *it);
 static void item_unlink_q(item *it);
 
 #define LARGEST_ID POWER_LARGEST
+
+
+
 typedef struct {
-    uint64_t evicted;
+	//被LRU踢掉的item 数，参看do_item_alloc中的使用(evict英文是驱逐/ 依法收回的意思)
+    uint64_t evicted; 
+    //即使一个item的exptime设置为0，也是会被踢的  
+    //被踢的item中，超时时间(exptime)不为0的item数  
     uint64_t evicted_nonzero;
+	//最后一次踢item时，被踢的item已经过期多久了  
+    //itemstats[id].evicted_time = current_time - search->time; 
     rel_time_t evicted_time;
-    uint64_t reclaimed;
-    uint64_t outofmemory;
-    uint64_t tailrepairs;
-    uint64_t expired_unfetched;
-    uint64_t evicted_unfetched;
-    uint64_t crawler_reclaimed;
+    uint64_t reclaimed;//在申请item时，发现过期并回收的item数量  
+    uint64_t outofmemory;//为item申请内存，失败的次数  
+    uint64_t tailrepairs;//需要修复的item数量(除非worker线程有问题否则一般为0)  
+      
+    //直到被超时删除时都还没被访问过的item数量  
+    uint64_t expired_unfetched;  
+    //直到被LRU踢出时都还没有被访问过的item数量  
+    uint64_t evicted_unfetched;  
+      
+    uint64_t crawler_reclaimed;//被LRU爬虫发现的过期item数量 
+
 } itemstats_t;
 // 按time字段排序逆序,尾部是最不常用的item
 static item *heads[LARGEST_ID];
@@ -156,12 +169,16 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
             /* Initialize the item block: */
             it->slabs_clsid = 0;
         } else if ((it = slabs_alloc(ntotal, id)) == NULL) {
+        	//申请内存失败  
+            //此刻，过期失效的item没有找到，申请内存又失败
+            //使用LRU淘汰一个item(即使这个item并没有过期失效)  
             tried_alloc = 1;
-            if (settings.evict_to_free == 0) {
+            if (settings.evict_to_free == 0) {//设置了不进行LRU淘汰item 
                 itemstats[id].outofmemory++;
             } else {
-                itemstats[id].evicted++;
+                itemstats[id].evicted++;//增加被踢的item数  
                 itemstats[id].evicted_time = current_time - search->time;
+				//即使一个item的exptime成员设置为永不超时(0)，还是会被踢的  
                 if (search->exptime != 0)
                     itemstats[id].evicted_nonzero++;
                 if ((search->it_flags & ITEM_FETCHED) == 0) {
@@ -180,6 +197,8 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
                  * would be an eviction. Then kick off the slab mover before the
                  * eviction happens.
                  */
+                //一旦发现有item被踢，那么就启动内存页重分配操作  
+                //每次发现就进行此操作过于频繁，不推荐 
                 if (settings.slab_automove == 2)
                     slabs_reassign(-1, id);
             }
