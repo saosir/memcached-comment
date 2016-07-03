@@ -512,9 +512,14 @@ static volatile int do_run_slab_rebalance_thread = 1;
 #define DEFAULT_SLAB_BULK_CHECK 1
 int slab_bulk_check = DEFAULT_SLAB_BULK_CHECK;
 
+// 将一个slab class的一个内存页标注为要移动的，
+// 此时就不能让worker线程访问这个内存页的item
+// 假如worker线程刚好要访问这个内存页的一个item，
+// 对应的处理情况参看do_item_get
+
 static int slab_rebalance_start(void) {
     slabclass_t *s_cls;
-    int no_go = 0;
+    int no_go = 0; // 非0即错误
 
     pthread_mutex_lock(&cache_lock);
     pthread_mutex_lock(&slabs_lock);
@@ -528,6 +533,7 @@ static int slab_rebalance_start(void) {
 
     s_cls = &slabclass[slab_rebal.s_clsid];
 
+	// 确保d_clsid的slab内存页数组有足够的元素供使用
     if (!grow_slab_list(slab_rebal.d_clsid)) {
         no_go = -1;
     }
@@ -540,11 +546,12 @@ static int slab_rebalance_start(void) {
         pthread_mutex_unlock(&cache_lock);
         return no_go; /* Should use a wrapper function... */
     }
-
+    //标志将源slab class的第几个内存页分给目标slab class  
+    //这里是默认是将第一个内存页分给目标slab class 
     s_cls->killing = 1;
 
-    slab_rebal.slab_start = s_cls->slab_list[s_cls->killing - 1];
-    slab_rebal.slab_end   = (char *)slab_rebal.slab_start +
+    slab_rebal.slab_start = s_cls->slab_list[s_cls->killing - 1]; 	
+    slab_rebal.slab_end   = (char *)slab_rebal.slab_start +			
         (s_cls->size * s_cls->perslab);
     slab_rebal.slab_pos   = slab_rebal.slab_start;
     slab_rebal.done       = 0;
@@ -598,19 +605,27 @@ static int slab_rebalance_move(void) {
             } else {
                 refcount = refcount_incr(&it->refcount);
                 if (refcount == 1) { /* item is unlinked, unused */
-                    if (it->it_flags & ITEM_SLABBED) {
+					//如果it_flags&ITEM_SLABBED为真，那么就说明这个item  
+                    //根本就没有分配出去。如果为假，那么说明这个item被分配  
+                    //出去了，但处于归还途中。参考do_item_get 
+                    if (it->it_flags & ITEM_SLABBED) { //没有分配出去
                         /* remove from slab freelist */
+						// 从空闲slots链表移除
                         if (s_cls->slots == it) {
+							// 头部
                             s_cls->slots = it->next;
                         }
+						// 指针删除
                         if (it->next) it->next->prev = it->prev;
                         if (it->prev) it->prev->next = it->next;
                         s_cls->sl_curr--;
                         status = MOVE_DONE;
                     } else {
+                    	//还有另外一个worker线程在归还这个item  
                         status = MOVE_BUSY;
                     }
                 } else if (refcount == 2) { /* item is linked but not busy */
+                 	//没有worker线程引用这个item  
                     if ((it->it_flags & ITEM_LINKED) != 0) {
                         do_item_unlink_nolock(it, hv);
                         status = MOVE_DONE;
@@ -646,7 +661,7 @@ static int slab_rebalance_move(void) {
             case MOVE_PASS:
                 break;
         }
-
+		// 指向下一个item
         slab_rebal.slab_pos = (char *)slab_rebal.slab_pos + s_cls->size;
         if (slab_rebal.slab_pos >= slab_rebal.slab_end)
             break;
@@ -654,11 +669,13 @@ static int slab_rebalance_move(void) {
 
     if (slab_rebal.slab_pos >= slab_rebal.slab_end) {
         /* Some items were busy, start again from the top */
+		//在处理的时候，跳过了一些item(因为有worker线程在引用)
         if (slab_rebal.busy_items) {
+			//从头再扫描一次这个页  
             slab_rebal.slab_pos = slab_rebal.slab_start;
             slab_rebal.busy_items = 0;
         } else {
-            slab_rebal.done++;
+            slab_rebal.done++;//标志已经处理完这个页的所有item 
         }
     }
 
@@ -668,6 +685,7 @@ static int slab_rebalance_move(void) {
     return was_busy;
 }
 
+// 将src slab的内存页，移动到dst slab中
 static void slab_rebalance_finish(void) {
     slabclass_t *s_cls;
     slabclass_t *d_cls;
@@ -679,6 +697,8 @@ static void slab_rebalance_finish(void) {
     d_cls   = &slabclass[slab_rebal.d_clsid];
 
     /* At this point the stolen slab is completely clear */
+	// 数组中的元素删除，将数组尾部元素覆盖数组中
+	// 被删除元素
     s_cls->slab_list[s_cls->killing - 1] =
         s_cls->slab_list[s_cls->slabs - 1];
     s_cls->slabs--;
@@ -686,7 +706,9 @@ static void slab_rebalance_finish(void) {
 
     memset(slab_rebal.slab_start, 0, (size_t)settings.item_size_max);
 
+	// 将内存页移动到dst slab，直接在内存页数组尾部添加
     d_cls->slab_list[d_cls->slabs++] = slab_rebal.slab_start;
+	// 内存页切割为item
     split_slab_page_into_freelist(slab_rebal.slab_start,
         slab_rebal.d_clsid);
 
@@ -721,6 +743,8 @@ static void slab_rebalance_finish(void) {
 //返回1表示成功选出两位选手  
 //返回0表示没有选出，要同时选出两个选手才返回1
 
+// src 表示item不是经常被淘汰，连续三次item不被踢
+// dst 表示item经常被淘汰踢出，连续三次item淘汰数都是第一
 static int slab_automove_decision(int *src, int *dst) {
     static uint64_t evicted_old[POWER_LARGEST];
     static unsigned int slab_zeroes[POWER_LARGEST];
@@ -837,10 +861,14 @@ static void *slab_rebalance_thread(void *arg) {
 
             was_busy = 0;
         } else if (slab_rebalance_signal && slab_rebal.slab_start != NULL) {
+            // slab_rebalance_start 之后执行这一步
+            // 清除内存页中所有item，将item从哈希表和LRU队列中删除
             was_busy = slab_rebalance_move();
         }
 
         if (slab_rebal.done) {
+			//完成真正的内存页迁移操作
+			//把一个内存页从一个slab class 转移到另外一个slab class中
             slab_rebalance_finish();
         } else if (was_busy) {
             /* Stuck waiting for some items to unlock, so slow down a bit
@@ -899,6 +927,7 @@ static enum reassign_result_type do_slabs_reassign(int src, int dst) {
     slab_rebal.s_clsid = src;
     slab_rebal.d_clsid = dst;
 
+	// 唤醒rebalance线程
     slab_rebalance_signal = 1;
     pthread_cond_signal(&slab_rebalance_cond);
 

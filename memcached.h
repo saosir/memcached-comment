@@ -506,12 +506,14 @@ extern volatile rel_time_t current_time;
 /* TODO: Move to slabs.h? */
 extern volatile int slab_rebalance_signal;
 
+// 将源slab的内存页移动到目标slab
 struct slab_rebalance {
-    void *slab_start;
-    void *slab_end;
-    void *slab_pos;
-    int s_clsid;
-    int d_clsid;
+    void *slab_start; // 某一内存页起始地址
+    void *slab_end;	  // 某一内存页结束地址	
+    void *slab_pos;   // 内存也中当前位置
+    //通过slab_automove_decision得到两个位置
+    int s_clsid; // src slab
+    int d_clsid; // dst slab
     int busy_items;
     uint8_t done;
 };

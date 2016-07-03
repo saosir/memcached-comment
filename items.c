@@ -357,6 +357,7 @@ void do_item_unlink(item *it, const uint32_t hv) {
 }
 
 /* FIXME: Is it necessary to keep this copy/pasted code? */
+//从哈希表和LRU队列中删除这个item
 void do_item_unlink_nolock(item *it, const uint32_t hv) {
     MEMCACHED_ITEM_UNLINK(ITEM_key(it), it->nkey, it->nbytes);
     if ((it->it_flags & ITEM_LINKED) != 0) {
@@ -569,6 +570,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
          * of item_lock, cache_lock, slabs_lock. */
         if (slab_rebalance_signal &&
             ((void *)it >= slab_rebal.slab_start && (void *)it < slab_rebal.slab_end)) {
+            //item处在正在被移动的内存页当中，参看slab_rebalance_start
             do_item_unlink_nolock(it, hv);
             do_item_remove(it);
             it = NULL;
