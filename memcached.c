@@ -107,7 +107,7 @@ time_t process_started;     /* when the process was started */
 conn **conns;
 
 struct slab_rebalance slab_rebal;
-volatile int slab_rebalance_signal;
+volatile int slab_rebalance_signal; // 正在调整slab之间的内存页
 
 /** file scope variables **/
 static conn *listen_conn = NULL;

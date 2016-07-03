@@ -547,9 +547,10 @@ static int slab_rebalance_start(void) {
         return no_go; /* Should use a wrapper function... */
     }
     //标志将源slab class的第几个内存页分给目标slab class  
-    //这里是默认是将第一个内存页分给目标slab class 
+    //这里是默认是将第一个内存页分给目标slab class ，why?
     s_cls->killing = 1;
 
+	// 设置好slab_start slab_end slab_pos
     slab_rebal.slab_start = s_cls->slab_list[s_cls->killing - 1]; 	
     slab_rebal.slab_end   = (char *)slab_rebal.slab_start +			
         (s_cls->size * s_cls->perslab);
@@ -593,7 +594,7 @@ static int slab_rebalance_move(void) {
     pthread_mutex_lock(&slabs_lock);
 
     s_cls = &slabclass[slab_rebal.s_clsid];
-
+	// 一次只扫面slab_bulk_check个item ，防止长期占用cpu
     for (x = 0; x < slab_bulk_check; x++) {
         item *it = slab_rebal.slab_pos;
         status = MOVE_PASS;
@@ -625,8 +626,9 @@ static int slab_rebalance_move(void) {
                         status = MOVE_BUSY;
                     }
                 } else if (refcount == 2) { /* item is linked but not busy */
-                 	//没有worker线程引用这个item  
+                 	//没有worker线程引用这个item  ，
                     if ((it->it_flags & ITEM_LINKED) != 0) {
+						//直接从lru和哈希表移除
                         do_item_unlink_nolock(it, hv);
                         status = MOVE_DONE;
                     } else {
@@ -653,6 +655,7 @@ static int slab_rebalance_move(void) {
                 it->slabs_clsid = 255;
                 break;
             case MOVE_BUSY:
+				// 还原之前的refcount_incr操作，注意MOVE_DONE直接就清零引用
                 refcount_decr(&it->refcount);
             case MOVE_LOCKED:
                 slab_rebal.busy_items++;
@@ -666,7 +669,7 @@ static int slab_rebalance_move(void) {
         if (slab_rebal.slab_pos >= slab_rebal.slab_end)
             break;
     }
-
+	// 扫面结束
     if (slab_rebal.slab_pos >= slab_rebal.slab_end) {
         /* Some items were busy, start again from the top */
 		//在处理的时候，跳过了一些item(因为有worker线程在引用)
@@ -871,6 +874,7 @@ static void *slab_rebalance_thread(void *arg) {
 			//把一个内存页从一个slab class 转移到另外一个slab class中
             slab_rebalance_finish();
         } else if (was_busy) {
+        	// 部分item正在被引用，下一个轮询在调用slab_rebalance_move
             /* Stuck waiting for some items to unlock, so slow down a bit
              * to give them a chance to free up */
             usleep(50);

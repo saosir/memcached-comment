@@ -353,7 +353,9 @@ typedef struct _stritem {
     unsigned short  refcount;
     uint8_t         nsuffix;    /* length of flags-and-length string */
     uint8_t         it_flags;   /* ITEM_* above */
+	// 该item所属的slab
     uint8_t         slabs_clsid;/* which slab class we're in */
+	// hash key的长度 
     uint8_t         nkey;       /* key length, w/terminating null and padding */
     /* this odd type prevents type-punning issues when we do
      * the little shuffle to save space when not using CAS. */
