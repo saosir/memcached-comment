@@ -189,8 +189,8 @@ enum network_transport {
 };
 
 enum item_lock_types {
-    ITEM_LOCK_GRANULAR = 0,
-    ITEM_LOCK_GLOBAL
+    ITEM_LOCK_GRANULAR = 0, // 感觉item 的hash value得到对应的lock，然后再枷锁
+    ITEM_LOCK_GLOBAL// 全局唯一lock
 };
 
 #define IS_UDP(x) (x == udp_transport)

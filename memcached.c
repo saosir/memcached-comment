@@ -3999,6 +3999,7 @@ static enum transmit_result transmit(conn *c) {
     }
 }
 
+// 状态机，对所有事件进行处理
 static void drive_machine(conn *c) {
     bool stop = false;
     int sfd;
@@ -4019,6 +4020,7 @@ static void drive_machine(conn *c) {
 
         switch(c->state) {
         case conn_listening:
+			// 新连接到来
             addrlen = sizeof(addr);
 #ifdef HAVE_ACCEPT4
             if (use_accept4) {
@@ -4066,6 +4068,7 @@ static void drive_machine(conn *c) {
                 stats.rejected_conns++;
                 STATS_UNLOCK();
             } else {
+            	// 新客户端连接到来，分配给各个子线程
                 dispatch_conn_new(sfd, conn_new_cmd, EV_READ | EV_PERSIST,
                                      DATA_BUFFER_SIZE, tcp_transport);
             }
@@ -4333,7 +4336,9 @@ static void drive_machine(conn *c) {
 
     return;
 }
-/* 服务器接收socket回调*/
+/* 服务器接收socket回调，包括了所有socket事件的处理，
+* 根据socket的状态、类型对不同消息做处理
+*/
 void event_handler(const int fd, const short which, void *arg) {
     conn *c;
 
@@ -4408,7 +4413,7 @@ static void maximize_sndbuf(const int sfd) {
         fprintf(stderr, "<%d send buffer was %d, now %d\n", sfd, old_size, last_good);
 }
 
-/**
+/** 创建一个服务器监听socket，放到master线程的事件循环监听
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
@@ -4546,9 +4551,10 @@ static int server_socket(const char *interface,
                                   UDP_READ_BUFFER_SIZE, transport);
             }
         } else {
+        	// 监听socket
             if (!(listen_conn_add = conn_new(sfd, conn_listening,
                                              EV_READ | EV_PERSIST, 1,
-                                             transport, main_base))) {
+                                             transport, main_base /* master线程的事件循环*/))) {
                 fprintf(stderr, "failed to create listening connection\n");
                 exit(EXIT_FAILURE);
             }
@@ -5539,17 +5545,21 @@ int main (int argc, char **argv) {
 	// 创建master/worker模型，初始化多个worker线程
     thread_init(settings.num_threads, main_base);
 
+	// expand 哈希表线程，当哈希表节点数大于桶数的1.5倍就开始扩展
+	// hash_items >  (hashsize(hashpower) * 3) / 2
     if (start_assoc_maintenance_thread() == -1) {
         exit(EXIT_FAILURE);
     }
 
     if (settings.slab_reassign &&
-        start_slab_maintenance_thread() == -1) {
+        start_slab_maintenance_thread() == -1) { // 内存页重分配，就是将部分slab空闲的
+        										 // 内存页从一个slab移到另外一个slab当
+        										 // 中
         exit(EXIT_FAILURE);
     }
 
     /* Run regardless of initializing it later */
-    init_lru_crawler();
+    init_lru_crawler(); // lru队列
 
     /* initialise clock event */
     clock_handler(0, 0, 0);

@@ -160,12 +160,14 @@ void item_unlock(uint32_t hv) {
     }
 }
 
+// 等待所有线程完成处理某个任务
 static void wait_for_thread_registration(int nthreads) {
     while (init_count < nthreads) {
         pthread_cond_wait(&init_cond, &init_lock);
     }
 }
 
+// 通知已经完成的消息
 static void register_thread_initialized(void) {
     pthread_mutex_lock(&init_lock);
     init_count++;
@@ -173,6 +175,7 @@ static void register_thread_initialized(void) {
     pthread_mutex_unlock(&init_lock);
 }
 
+// 通知每个work线程切换item_lock
 void switch_item_lock_type(enum item_lock_types type) {
     char buf[1];
     int i;
@@ -367,8 +370,9 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 }
 
 /*
- * Worker thread: main event loop 工作线程
+ * Worker thread: main event loop 
  */
+ //工作线程事件循环
 static void *worker_libevent(void *arg) {
     LIBEVENT_THREAD *me = arg;
 
@@ -391,7 +395,7 @@ static void *worker_libevent(void *arg) {
 }
 
 
-/*
+/* work线程的事件处理回调，接收新连接与切换锁类型
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
@@ -409,6 +413,7 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     item = cq_pop(me->new_conn_queue);
 
     if (NULL != item) {
+		// 新连接item->init_state == conn_new_cmd
         conn *c = conn_new(item->sfd, item->init_state, item->event_flags,
                            item->read_buffer_size, item->transport, me->base);
         if (c == NULL) {
@@ -443,7 +448,7 @@ static void thread_libevent_process(int fd, short which, void *arg) {
 /* Which thread we assigned a connection to most recently. */
 static int last_thread = -1;
 
-/* 有主线程调用,将客户端连接分发到各个子线程
+/* 由主线程master调用,将客户端连接分发到各个worker子线程
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, either during initialization (for UDP) or because
  * of an incoming connection.
@@ -460,6 +465,7 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
     }
 
 	// 将新连接的socket分发到工作线程采用的是循环的策略
+	// 为什么不加个负载均衡
     int tid = (last_thread + 1) % settings.num_threads;
 
     LIBEVENT_THREAD *thread = threads + tid;
@@ -471,11 +477,12 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
     item->event_flags = event_flags;
     item->read_buffer_size = read_buffer_size;
     item->transport = transport;
-
+	// 加入相应的work线程队列
     cq_push(thread->new_conn_queue, item);
 
     MEMCACHED_CONN_DISPATCH(sfd, thread->thread_id);
     buf[0] = 'c';
+	// 通知唤醒对应线程事件循环
     if (write(thread->notify_send_fd, buf, 1) != 1) {
         perror("Writing to thread notify pipe");
     }
@@ -818,7 +825,7 @@ void thread_init(int nthreads, struct event_base *main_base) {
     for (i = 0; i < item_lock_count; i++) {
         pthread_mutex_init(&item_locks[i], NULL);
     }
-    pthread_key_create(&item_lock_type_key, NULL);
+    pthread_key_create(&item_lock_type_key, NULL); // 线程本地存储
     pthread_mutex_init(&item_global_lock, NULL);
 
     threads = calloc(nthreads, sizeof(LIBEVENT_THREAD));
