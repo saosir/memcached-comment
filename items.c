@@ -34,15 +34,18 @@ typedef struct {
     uint64_t reclaimed;//在申请item时，发现过期并回收的item数量  
     uint64_t outofmemory;//为item申请内存，失败的次数  
     uint64_t tailrepairs;//需要修复的item数量(除非worker线程有问题否则一般为0)  
-      
-    //直到被超时删除时都还没被访问过的item数量  
+
+	// evict 是依法驱逐的意思
+    //直到被超时删除时都还没被访问过的item数量(ITEM_FETCHED)  
     uint64_t expired_unfetched;  
-    //直到被LRU踢出时都还没有被访问过的item数量  
+    //直到被LRU踢出时都还没有被访问过的item数量 (ITEM_FETCHED) 
     uint64_t evicted_unfetched;  
       
     uint64_t crawler_reclaimed;//被LRU爬虫发现的过期item数量 
 
 } itemstats_t;
+
+// LRU队列
 // 按time字段排序逆序,尾部是最不常用的item
 static item *heads[LARGEST_ID];
 static item *tails[LARGEST_ID];
@@ -117,13 +120,13 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
 
     mutex_lock(&cache_lock);
     /* do a quick check if we have any expired items in the tail.. */
-    int tries = 5;
+    int tries = 5; // 查看是否有超时的item，尝试5次
     int tried_alloc = 0;
     item *search;
     void *hold_lock = NULL;
     rel_time_t oldest_live = settings.oldest_live;
 
-    search = tails[id];
+    search = tails[id]; // 尾部为最不常用item
     /* We walk up *only* for locked items. Never searching for expired.
      * Waste of CPU for almost all deployments */
     for (; tries > 0 && search != NULL; tries--, search=search->prev) {
@@ -156,9 +159,11 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
             continue;
         }
 
-        /* Expired or flushed 找到的item过期*/
-        if ((search->exptime != 0 && search->exptime < current_time) // 为什么这么判断看do_item_get函数注释
-            || (search->time <= oldest_live && oldest_live <= current_time)) {
+		// 找到的item过期
+        /* Expired or flushed */
+		// 为什么这么判断看do_item_get函数注释
+        if ((search->exptime != 0 && search->exptime < current_time) // item超时
+            || (search->time <= oldest_live && oldest_live <= current_time)) {//item在接收flush_all命令之前已经存在
             itemstats[id].reclaimed++;
             if ((search->it_flags & ITEM_FETCHED) == 0) {
                 itemstats[id].expired_unfetched++;
@@ -204,10 +209,10 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
             }
         }
 
-        refcount_decr(&search->refcount); // 变为0
+        refcount_decr(&search->refcount); 
         /* If hash values were equal, we don't grab a second lock */
         if (hold_lock)
-            item_trylock_unlock(hold_lock);
+            item_trylock_unlock(hold_lock); // 释放item_trylock(hv)
         break;
     }
 
@@ -226,6 +231,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
     /* Item initialization can happen outside of the lock; the item's already
      * been removed from the slab LRU.
      */
+    //对分配的item(从slab获取获取淘汰lru获取)进行初始化
     it->refcount = 1;     /* the caller will have a reference */
     mutex_unlock(&cache_lock);
     it->next = it->prev = it->h_next = 0;
@@ -234,7 +240,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
     DEBUG_REFCNT(it, '*');
     it->it_flags = settings.use_cas ? ITEM_CAS : 0;
     it->nkey = nkey;
-    it->nbytes = nbytes;
+    it->nbytes = nbytes; 
     memcpy(ITEM_key(it), key, nkey);
     it->exptime = exptime;
     memcpy(ITEM_suffix(it), suffix, (size_t)nsuffix);
@@ -292,7 +298,7 @@ static void item_link_q(item *it) { /* item is the new head */
     return;
 }
 
-// 从heads和tails链表中删除
+// 从LRU队列的heads和tails链表中删除
 static void item_unlink_q(item *it) {
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -644,7 +650,7 @@ item *do_item_touch(const char *key, size_t nkey, uint32_t exptime,
 //worker1线程还没来得及调用item_flush_expired函数，就被worker2
 //抢占了cpu，然后worker2往lru队列插入了一个item。这个item的time
 //成员就会满足iter->time >= settings.oldest_live
-
+// 参考http://www.bkjia.com/ASPjc/945873.html
 void do_item_flush_expired(void) {
     int i;
     item *iter, *next;

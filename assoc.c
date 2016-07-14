@@ -269,16 +269,26 @@ static void *assoc_maintenance_thread(void *arg) {
 
         if (!expanding) {
             /* finished expanding. tell all threads to use fine-grained locks */
+			//进入到这里，说明已经不需要迁移数据(停止扩展了) 
+            //告诉所有的workers线程，访问item时，切换到段级别的锁
+            //会阻塞到所有workers线程都切换到段级别的锁 
             switch_item_lock_type(ITEM_LOCK_GRANULAR);
             slabs_rebalancer_resume(); // pthread_mutex_unlock(&slabs_rebalance_lock)
             /* We are done expanding.. just wait for next invocation */
             mutex_lock(&cache_lock);
             started_expanding = false;
 			// 等待expand通知扩展hash
+			//直到别的线程插入数据后发现item数量已经到了1.5倍哈希表大小，  
+            //此时调用别的线程调用assoc_start_expand函数，该函数会调用pthread_cond_signal  
+            //唤醒扩展线程 
             pthread_cond_wait(&maintenance_cond, &cache_lock); 
             /* Before doing anything, tell threads to use a global lock */
             mutex_unlock(&cache_lock);
             slabs_rebalancer_pause(); // pthread_mutex_lock(&slabs_rebalance_lock)
+            // 开始扩展哈希表，暂时切换到全局锁
+            // 因为在扩展期间，无法通过hash item定位
+            // 段锁，所有的workers线程和迁移线程一起，
+            // 争抢全局级别的锁
             switch_item_lock_type(ITEM_LOCK_GLOBAL);
             mutex_lock(&cache_lock);
             assoc_expand(); // 对关键变量初始化，开始扩展

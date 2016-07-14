@@ -91,7 +91,7 @@ static void slabs_preallocate (const unsigned int maxslabs);
  * Given object size, return id to use when allocating/freeing memory for object
  * 0 means error: can't store such a large object
  */
-
+// 根据长度得到slabs 的id
 unsigned int slabs_clsid(const size_t size) {
     int res = POWER_SMALLEST;
 
@@ -583,6 +583,7 @@ enum move_status {
  * threads. instead, note we found a busy one and bail. logic in do_item_get
  * will prevent busy items from continuing to be busy
  */
+ //清楚内存页中的item，回收所有item为内存页迁移做准备
 static int slab_rebalance_move(void) {
     slabclass_t *s_cls;
     int x;
@@ -917,7 +918,7 @@ static enum reassign_result_type do_slabs_reassign(int src, int dst) {
 
     /* Special indicator to choose ourselves. */
     if (src == -1) {
-        src = slabs_reassign_pick_any(dst);
+        src = slabs_reassign_pick_any(dst);// 随机选取一个page
         /* TODO: If we end up back at -1, return a new error type */
     }
 

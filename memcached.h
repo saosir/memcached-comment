@@ -321,6 +321,12 @@ struct settings {
     int slab_automove;     /* Whether or not to automatically move slabs */
     int hashpower_init;     /* Starting hash power level */
     bool shutdown_command; /* allow shutdown command */
+    //用于修复item的引用数。如果一个worker线程引用了某个item，还没来得及解除引用这个线程就挂了  
+    //那么这个item就永远被这个已死的线程所引用而不能释放。memcached用这个值来检测是否出现这种  
+    //情况。因为这种情况很少发生，所以该变量的默认值为0(即不进行检测)。  
+    //在启动memcached时，通过-o tail_repair_time xxx设置。设置的值要大于10(单位为秒)  
+    //TAIL_REPAIR_TIME_DEFAULT 等于 0。
+
     int tail_repair_time;   /* LRU tail refcount leak repair time */
     bool flush_enabled;     /* flush_all enabled */
     char *hash_algorithm;     /* Hash algorithm in use */
@@ -338,6 +344,7 @@ extern struct settings settings;
 /* temp */
 #define ITEM_SLABBED 4
 
+// item有被访问过，在do_item_get中查询到item后flag被设置 ITEM_FETCHED标示
 #define ITEM_FETCHED 8
 
 /**
