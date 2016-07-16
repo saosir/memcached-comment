@@ -296,6 +296,7 @@ struct settings {
     int udpport;
     char *inter;
     int verbose;
+	// 当item的时间小于该值的时候会被删除，和flush_all命令相关
     rel_time_t oldest_live; /* ignore existing items older than this */
     int evict_to_free;
     char *socketpath;   /* path to unix socket if using local socket */
@@ -338,6 +339,7 @@ extern struct stats stats;
 extern time_t process_started;
 extern struct settings settings;
 
+// 已经插入lru队列和哈希表
 #define ITEM_LINKED 1
 #define ITEM_CAS 2
 
@@ -374,6 +376,7 @@ typedef struct _stritem {
     /* then null-terminated key */
     /* then " flags length\r\n" (no terminating null) */
     /* then data with terminating \r\n (no terminating null; it's binary!) */
+	// 数据格式: key [cas] |suffix | data
 } item;
 
 typedef struct {

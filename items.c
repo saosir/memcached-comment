@@ -47,10 +47,13 @@ typedef struct {
 
 // LRU队列
 // 按time字段排序逆序,尾部是最不常用的item
+// lru链表头
 static item *heads[LARGEST_ID];
+// lru链表尾
 static item *tails[LARGEST_ID];
 static crawler crawlers[LARGEST_ID]; // 伪节点
 static itemstats_t itemstats[LARGEST_ID];
+// lru链表节点个数
 static unsigned int sizes[LARGEST_ID];
 
 static int crawler_count = 0;
@@ -280,6 +283,7 @@ bool item_size_ok(const size_t nkey, const int flags, const int nbytes) {
     return slabs_clsid(ntotal) != 0;
 }
 
+// 链接到lru队列首部
 static void item_link_q(item *it) { /* item is the new head */
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -289,11 +293,14 @@ static void item_link_q(item *it) { /* item is the new head */
     tail = &tails[it->slabs_clsid];
     assert(it != *head);
     assert((*head && *tail) || (*head == 0 && *tail == 0));
-    it->prev = 0;
+	// 链表头插法
+	it->prev = 0;
     it->next = *head;
     if (it->next) it->next->prev = it;
     *head = it;
+	// 初始链表为空，更新链表尾指针
     if (*tail == 0) *tail = it;
+	// 更新计数
     sizes[it->slabs_clsid]++;
     return;
 }
@@ -305,10 +312,12 @@ static void item_unlink_q(item *it) {
     head = &heads[it->slabs_clsid];
     tail = &tails[it->slabs_clsid];
 
+	// 删除节点是链表头，更新head
     if (*head == it) {
         assert(it->prev == 0);
         *head = it->next;
     }
+	// 删除节点是链表尾，更新tail
     if (*tail == it) {
         assert(it->next == 0);
         *tail = it->prev;
@@ -316,8 +325,10 @@ static void item_unlink_q(item *it) {
     assert(it->next != it);
     assert(it->prev != it);
 
+	// 链表节点删除
     if (it->next) it->next->prev = it->prev;
     if (it->prev) it->prev->next = it->next;
+	// 更新计数
     sizes[it->slabs_clsid]--;
     return;
 }
@@ -337,7 +348,9 @@ int do_item_link(item *it, const uint32_t hv) {
 
     /* Allocate a new CAS ID on link. */
     ITEM_set_cas(it, (settings.use_cas) ? get_cas_id() : 0);
+	// 插入哈希表
     assoc_insert(it, hv);
+	// 插入lru
     item_link_q(it);
     refcount_incr(&it->refcount);
     mutex_unlock(&cache_lock);
@@ -345,7 +358,7 @@ int do_item_link(item *it, const uint32_t hv) {
     return 1;
 }
 
-// 从hash/lru list中除去关于it的链接(可能包括slab)
+// 从哈希表和lru队列中移除item
 void do_item_unlink(item *it, const uint32_t hv) {
     MEMCACHED_ITEM_UNLINK(ITEM_key(it), it->nkey, it->nbytes);
     mutex_lock(&cache_lock);
@@ -355,7 +368,9 @@ void do_item_unlink(item *it, const uint32_t hv) {
         stats.curr_bytes -= ITEM_ntotal(it);
         stats.curr_items -= 1;
         STATS_UNLOCK();
+		// 从哈希表移除
         assoc_delete(ITEM_key(it), it->nkey, hv);
+		// 从lru队列移除
         item_unlink_q(it);
         do_item_remove(it);
     }
@@ -378,7 +393,7 @@ void do_item_unlink_nolock(item *it, const uint32_t hv) {
     }
 }
 
-// 减少引用计数,从slab中删除
+// 减少引用计数,将item对应的内存归还到slab
 void do_item_remove(item *it) {
     MEMCACHED_ITEM_REMOVE(ITEM_key(it), it->nkey, it->nbytes);
     assert((it->it_flags & ITEM_SLABBED) == 0);
@@ -405,6 +420,7 @@ void do_item_update(item *it) {
     }
 }
 
+// 用new_it 替换it
 int do_item_replace(item *it, item *new_it, const uint32_t hv) {
     MEMCACHED_ITEM_REPLACE(ITEM_key(it), it->nkey, it->nbytes,
                            ITEM_key(new_it), new_it->nkey, new_it->nbytes);
@@ -415,6 +431,7 @@ int do_item_replace(item *it, item *new_it, const uint32_t hv) {
 }
 
 /*@null@*/
+// 显示某个slab的item情况
 char *do_item_cachedump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
     unsigned int memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
     char *buffer;
@@ -599,6 +616,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     }
 
     if (it != NULL) {
+		// flush_all过期
         if (settings.oldest_live != 0 && settings.oldest_live <= current_time &&
             it->time <= settings.oldest_live) {
         //settings.oldest_live初始化值为0
@@ -614,7 +632,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
             if (was_found) {
                 fprintf(stderr, " -nuked by flush");
             }
-        } else if (it->exptime != 0 && it->exptime <= current_time) {
+        } else if (it->exptime != 0 && it->exptime <= current_time) { // item本身超时过期
             do_item_unlink(it, hv);
             do_item_remove(it);
             it = NULL;
@@ -633,6 +651,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     return it;
 }
 
+// 更新item的超时时间
 item *do_item_touch(const char *key, size_t nkey, uint32_t exptime,
                     const uint32_t hv) {
     item *it = do_item_get(key, nkey, hv);
@@ -649,7 +668,9 @@ item *do_item_touch(const char *key, size_t nkey, uint32_t exptime,
 //flush_all命令，并给settings.oldest_live赋值为current_time-1。
 //worker1线程还没来得及调用item_flush_expired函数，就被worker2
 //抢占了cpu，然后worker2往lru队列插入了一个item。这个item的time
-//成员就会满足iter->time >= settings.oldest_live
+//成员就会满足iter->time >= settings.oldest_live，因此这里就是为了处理
+//在执行oldest_live赋值时，有可能其他线程往队列中插入，导致
+// 应该部分item没有被移除
 // 参考http://www.bkjia.com/ASPjc/945873.html
 void do_item_flush_expired(void) {
     int i;
@@ -664,6 +685,7 @@ void do_item_flush_expired(void) {
          */
         for (iter = heads[i]; iter != NULL; iter = next) {
             /* iter->time of 0 are magic objects. */
+			// 注意比较是item->time >= settings.oldest_live，参考上面注释
             if (iter->time != 0 && iter->time >= settings.oldest_live) {
                 next = iter->next;
                 if ((iter->it_flags & ITEM_SLABBED) == 0) {
@@ -677,6 +699,7 @@ void do_item_flush_expired(void) {
     }
 }
 
+// 将lru爬虫节点插入lru队列尾部
 static void crawler_link_q(item *it) { /* item is the new tail */
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -688,6 +711,7 @@ static void crawler_link_q(item *it) { /* item is the new tail */
     assert(*tail != 0);
     assert(it != *tail);
     assert((*head && *tail) || (*head == 0 && *tail == 0));
+	// 链表尾插
     it->prev = *tail;
     it->next = 0;
     if (it->prev) {
@@ -699,6 +723,7 @@ static void crawler_link_q(item *it) { /* item is the new tail */
     return;
 }
 
+// 将lru爬虫从lru队列中移除
 static void crawler_unlink_q(item *it) {
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -723,7 +748,7 @@ static void crawler_unlink_q(item *it) {
 
 /* This is too convoluted, but it's a difficult shuffle. Try to rewrite it
  * more clearly. */
- // 返回item的前一个节点,并且将item与前一个节点交换位置
+ // 将lru爬虫往前移动一个位置，返回移动后，lru爬虫的后一个节点
 static item *crawler_crawl_q(item *it) {
     item **head, **tail;
     assert(it->it_flags == 1);
@@ -747,16 +772,22 @@ static item *crawler_crawl_q(item *it) {
     /* Swing ourselves in front of the next item */
     /* NB: If there is a prev, we can't be the head */
     assert(it->prev != it);
+	// 前面有个节点，lru爬虫可以往前移动
     if (it->prev) {
+		// lru爬虫前面就是头节点
         if (*head == it->prev) {
             /* Prev was the head, now we're the head */
+			// 直接将头节点指向lru爬虫
             *head = it;
         }
+		// lru爬虫是尾节点
         if (*tail == it) {
             /* We are the tail, now they are the tail */
+			// 往前移
             *tail = it->prev;
         }
         assert(it->next != it);
+		//lru爬虫后面有一个节点
         if (it->next) {
 			// 先删除自己
             assert(it->prev->next == it);
@@ -767,7 +798,7 @@ static item *crawler_crawl_q(item *it) {
             it->prev->next = 0;
         }
         /* prev->prev's next is it->prev */
-		// 与起一个节点交换位置
+		// lru爬虫往前挪动一个位置
         it->next = it->prev;
         it->prev = it->next->prev;
         it->next->prev = it;
