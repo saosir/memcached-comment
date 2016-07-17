@@ -51,11 +51,13 @@ typedef struct {
 static item *heads[LARGEST_ID];
 // lru链表尾
 static item *tails[LARGEST_ID];
-static crawler crawlers[LARGEST_ID]; // 伪节点
+// lru爬虫，伪节点
+static crawler crawlers[LARGEST_ID]; 
 static itemstats_t itemstats[LARGEST_ID];
 // lru链表节点个数
 static unsigned int sizes[LARGEST_ID];
 
+// lru队列中爬虫数量
 static int crawler_count = 0;
 static volatile int do_run_lru_crawler_thread = 0;
 static int lru_crawler_initialized = 0;
@@ -404,9 +406,15 @@ void do_item_remove(item *it) {
     }
 }
 
-// 更新item时间
+// 更新item时间，把原来的item从lru队列删除，然后
+// 插入到首部，保证lru队列按照最近最少使用原则
+// 排序
 void do_item_update(item *it) {
     MEMCACHED_ITEM_UPDATE(ITEM_key(it), it->nkey, it->nbytes);
+	//下面的代码可以看到update操作是耗时的。如果这个item频繁被访问，  
+    //那么会导致过多的update，过多的一系列费时操作。此时更新间隔就应运而生  
+    //了。如果上一次的访问时间(也可以说是update时间)距离现在(current_time)  
+    //还在更新间隔内的，就不更新。超出了才更新。
     if (it->time < current_time - ITEM_UPDATE_INTERVAL) {
         assert((it->it_flags & ITEM_SLABBED) == 0);
 
@@ -818,6 +826,7 @@ static item *crawler_crawl_q(item *it) {
  */
 static void item_crawler_evaluate(item *search, uint32_t hv, int i) {
     rel_time_t oldest_live = settings.oldest_live;
+	// 假如item已经超时
     if ((search->exptime != 0 && search->exptime < current_time)
         || (search->time <= oldest_live && oldest_live <= current_time)) {
         itemstats[i].crawler_reclaimed++;
@@ -862,8 +871,11 @@ static void *item_crawler_thread(void *arg) {
             }
             pthread_mutex_lock(&cache_lock);
             search = crawler_crawl_q((item *)&crawlers[i]);
-            if (search == NULL ||
-                (crawlers[i].remaining && --crawlers[i].remaining < 1)) {
+			// 爬虫已经爬到lru队列首部，或者超过爬行距离
+			// 就将其从队列中移除
+			
+            if (search == NULL || // 说明已经爬到队列首部
+                (crawlers[i].remaining && --crawlers[i].remaining < 1)) { // 超过爬行距离
                 if (settings.verbose > 2)
                     fprintf(stderr, "Nothing left to crawl for %d\n", i);
                 crawlers[i].it_flags = 0;
@@ -892,7 +904,8 @@ static void *item_crawler_thread(void *arg) {
             /* Frees the item or decrements the refcount. */
             /* Interface for this could improve: do the free/decr here
              * instead? */
-            item_crawler_evaluate(search, hv, i);
+            item_crawler_evaluate(search, hv, i); // 检查节点是否失效过期，如果过期失效则将其
+            									  // 释放，归还内存
 
             if (hold_lock)
                 item_trylock_unlock(hold_lock);
@@ -904,6 +917,7 @@ static void *item_crawler_thread(void *arg) {
     }
     if (settings.verbose > 2)
         fprintf(stderr, "LRU crawler thread sleeping\n");
+	// 注意在lru_crawler_crawl函数中已经置为true
     STATS_LOCK();
     stats.lru_crawler_running = false;
     STATS_UNLOCK();
@@ -917,6 +931,7 @@ static void *item_crawler_thread(void *arg) {
 
 static pthread_t item_crawler_tid;
 
+// 通过start/stop/thread这几个函数可以学习下cond/lock通知停等模型的用法
 int stop_item_crawler_thread(void) {
     int ret;
     pthread_mutex_lock(&lru_crawler_lock);
@@ -931,6 +946,7 @@ int stop_item_crawler_thread(void) {
     return 0;
 }
 
+// 开启lru线程
 int start_item_crawler_thread(void) {
     int ret;
 
@@ -951,20 +967,24 @@ int start_item_crawler_thread(void) {
     return 0;
 }
 
+// 通知lru爬虫线程
 enum crawler_result_type lru_crawler_crawl(char *slabs) {
     char *b = NULL;
     uint32_t sid = 0;
     uint8_t tocrawl[POWER_LARGEST];
+	// 如果trylock失败，说明lru线程爬虫正在遍历
     if (pthread_mutex_trylock(&lru_crawler_lock) != 0) {
         return CRAWLER_RUNNING;
     }
     pthread_mutex_lock(&cache_lock);
 
+	// 所有lru队列插入爬虫
     if (strcmp(slabs, "all") == 0) {
         for (sid = 0; sid < LARGEST_ID; sid++) {
             tocrawl[sid] = 1;
         }
     } else {
+    	// 有限个lru爬虫，学习strtok_r的用法
         for (char *p = strtok_r(slabs, ",", &b);
              p != NULL;
              p = strtok_r(NULL, ",", &b)) {
@@ -979,6 +999,7 @@ enum crawler_result_type lru_crawler_crawl(char *slabs) {
         }
     }
 
+	// 将lru爬虫插入lru队列中
     for (sid = 0; sid < LARGEST_ID; sid++) {
         if (tocrawl[sid] != 0 && tails[sid] != NULL) {
             if (settings.verbose > 2)
@@ -998,7 +1019,7 @@ enum crawler_result_type lru_crawler_crawl(char *slabs) {
     pthread_mutex_unlock(&cache_lock);
     pthread_cond_signal(&lru_crawler_cond);
     STATS_LOCK();
-    stats.lru_crawler_running = true;
+    stats.lru_crawler_running = true; // 前面已经lru_crawler_lock，不用担心
     STATS_UNLOCK();
     pthread_mutex_unlock(&lru_crawler_lock);
     return CRAWLER_OK;

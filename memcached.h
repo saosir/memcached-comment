@@ -356,10 +356,15 @@ typedef struct _stritem {
     struct _stritem *next;
     struct _stritem *prev;
     struct _stritem *h_next;    /* hash chain next */
+	// 最后一次获取的访问的时间
     rel_time_t      time;       /* least recent access */
+	// 超时时间
     rel_time_t      exptime;    /* expire time */
+	// 数据长度
     int             nbytes;     /* size of data */
+	// 引用计数
     unsigned short  refcount;
+	// suffix数据长度
     uint8_t         nsuffix;    /* length of flags-and-length string */
     uint8_t         it_flags;   /* ITEM_* above */
 	// 该item所属的slab
@@ -379,6 +384,9 @@ typedef struct _stritem {
 	// 数据格式: key [cas] |suffix | data
 } item;
 
+// lru队列爬虫，结构体字段和item基本相同，
+// 和item节点放置与lru队列中虽然类型不同，
+// 但是结构体的布局基本相同
 typedef struct {
     struct _stritem *next;
     struct _stritem *prev;
@@ -391,6 +399,7 @@ typedef struct {
     uint8_t         it_flags;   /* ITEM_* above */
     uint8_t         slabs_clsid;/* which slab class we're in */
     uint8_t         nkey;       /* key length, w/terminating null and padding */
+	// 爬虫爬行的步数
     uint32_t        remaining;  /* Max keys to crawl per slab per invocation */
 } crawler;
 
