@@ -395,7 +395,7 @@ void do_item_unlink_nolock(item *it, const uint32_t hv) {
     }
 }
 
-// 减少引用计数,将item对应的内存归还到slab
+// 减少引用计数,如果引用计数等于0，将item对应的内存归还到slab
 void do_item_remove(item *it) {
     MEMCACHED_ITEM_REMOVE(ITEM_key(it), it->nkey, it->nbytes);
     assert((it->it_flags & ITEM_SLABBED) == 0);
@@ -591,6 +591,7 @@ void do_item_stats_sizes(ADD_STAT add_stats, void *c) {
 }
 
 /** wrapper around assoc_find which does the lazy expiration logic */
+// 返回item ，并将item的引用计数+1
 item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     //mutex_lock(&cache_lock);
     item *it = assoc_find(key, nkey, hv);
@@ -864,11 +865,13 @@ static void *item_crawler_thread(void *arg) {
     while (crawler_count) {
         item *search = NULL;
         void *hold_lock = NULL;
-
+		// 每次循环都将所有slab的lru爬虫向前移动
         for (i = 0; i < LARGEST_ID; i++) {
             if (crawlers[i].it_flags != 1) {
                 continue;
             }
+			// 遍历一次加一次锁，防止长期占用锁导致其他线程不能
+			// 及时运行
             pthread_mutex_lock(&cache_lock);
             search = crawler_crawl_q((item *)&crawlers[i]);
 			// 爬虫已经爬到lru队列首部，或者超过爬行距离

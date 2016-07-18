@@ -253,6 +253,7 @@ static int add_msghdr(conn *c)
     assert(c != NULL);
 
     if (c->msgsize == c->msgused) {
+		//msglist已经使用完，指数增长
         msg = realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr));
         if (! msg) {
             STATS_LOCK();
@@ -489,6 +490,7 @@ static void conn_release_items(conn *c) {
         c->item = 0;
     }
 
+	//释放所有item项
     while (c->ileft > 0) {
         item *it = *(c->icurr);
         assert((it->it_flags & ITEM_SLABBED) == 0);
@@ -595,12 +597,12 @@ static void conn_shrink(conn *c) {
 
     if (IS_UDP(c->transport))
         return;
-
+	//内存rbuf太大，适当的变小
     if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
         char *newbuf;
 
         if (c->rcurr != c->rbuf)
-            memmove(c->rbuf, c->rcurr, (size_t)c->rbytes);
+            memmove(c->rbuf, c->rcurr, (size_t)c->rbytes); // 将rcurr后面未解析的数据前移
 
         newbuf = (char *)realloc((void *)c->rbuf, DATA_BUFFER_SIZE);
 
@@ -621,6 +623,7 @@ static void conn_shrink(conn *c) {
     /* TODO check error condition? */
     }
 
+	//通过sendmsg批量发送的  
     if (c->msgsize > MSG_LIST_HIGHWAT) {
         struct msghdr *newbuf = (struct msghdr *) realloc((void *)c->msglist, MSG_LIST_INITIAL * sizeof(c->msglist[0]));
         if (newbuf) {
@@ -629,7 +632,7 @@ static void conn_shrink(conn *c) {
         }
     /* TODO check error condition? */
     }
-
+	//msghdr里面iov的数量  
     if (c->iovsize > IOV_LIST_HIGHWAT) {
         struct iovec *newbuf = (struct iovec *) realloc((void *)c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0]));
         if (newbuf) {
@@ -663,6 +666,7 @@ static const char *state_text(enum conn_states state) {
  * processing that needs to happen on certain state transitions can
  * happen here.
  */
+ // 设置connection状态机的状态
 static void conn_set_state(conn *c, enum conn_states state) {
     assert(c != NULL);
     assert(state >= conn_listening && state < conn_max_state);
@@ -2252,6 +2256,7 @@ static void complete_nread_binary(conn *c) {
     }
 }
 
+// 重置初始化连接
 static void reset_cmd_handler(conn *c) {
     c->cmd = -1;
     c->substate = bin_no_state;
@@ -2261,6 +2266,7 @@ static void reset_cmd_handler(conn *c) {
     }
     conn_shrink(c);
     if (c->rbytes > 0) {
+		// 如果缓冲区有数据，进入解析状态
         conn_set_state(c, conn_parse_cmd);
     } else {
         conn_set_state(c, conn_waiting);
@@ -2430,6 +2436,7 @@ typedef struct token_s {
  *      command  = tokens[ix].value;
  *   }
  */
+ // 分词函数，返回分词的数量
 static size_t tokenize_command(char *command, token_t *tokens, const size_t max_tokens) {
     char *s, *e;
     size_t ntokens = 0;
@@ -2457,6 +2464,7 @@ static size_t tokenize_command(char *command, token_t *tokens, const size_t max_
         e++;
     }
 
+	// 最后一个分词
     if (s != e) {
         tokens[ntokens].value = s;
         tokens[ntokens].length = e - s;
@@ -2855,7 +2863,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
     size_t nkey;
     int i = 0;
     item *it;
-    token_t *key_token = &tokens[KEY_TOKEN];
+    token_t *key_token = &tokens[KEY_TOKEN];// KEY_TOKEN==1，0为"get"或者"bget"
     char *suffix;
     assert(c != NULL);
 
@@ -2879,6 +2887,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
             }
             if (it) {
                 if (i >= c->isize) {
+					// 返回给客户端的item缓冲区不足，指数增长
                     item **new_list = realloc(c->ilist, sizeof(item *) * c->isize * 2);
                     if (new_list) {
                         c->isize *= 2;
@@ -2974,7 +2983,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
                 c->thread->stats.slab_stats[it->slabs_clsid].get_hits++;
                 c->thread->stats.get_cmds++;
                 pthread_mutex_unlock(&c->thread->stats.mutex);
-                item_update(it);
+                item_update(it); // 有客户端访问这个item，更新其对应的访问时间
                 *(c->ilist + i) = it;
                 i++;
 
@@ -3394,6 +3403,7 @@ static void process_slabs_automove_command(conn *c, token_t *tokens, const size_
     return;
 }
 
+// 解析ascii命令
 static void process_command(conn *c, char *command) {
 
     token_t tokens[MAX_TOKENS];
@@ -3424,11 +3434,11 @@ static void process_command(conn *c, char *command) {
     if (ntokens >= 3 &&
         ((strcmp(tokens[COMMAND_TOKEN].value, "get") == 0) ||
          (strcmp(tokens[COMMAND_TOKEN].value, "bget") == 0))) {
-
+		// 执行get命令
         process_get_command(c, tokens, ntokens, false);
 
     } else if ((ntokens == 6 || ntokens == 7) &&
-               ((strcmp(tokens[COMMAND_TOKEN].value, "add") == 0 && (comm = NREAD_ADD)) ||
+               ((strcmp(tokens[COMMAND_TOKEN].value, "add") == 0 && (comm = NREAD_ADD)) || //comm为赋值
                 (strcmp(tokens[COMMAND_TOKEN].value, "set") == 0 && (comm = NREAD_SET)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "replace") == 0 && (comm = NREAD_REPLACE)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "prepend") == 0 && (comm = NREAD_PREPEND)) ||
@@ -3643,7 +3653,7 @@ static int try_read_command(conn *c) {
     assert(c != NULL);
     assert(c->rcurr <= (c->rbuf + c->rsize));
     assert(c->rbytes > 0);
-
+	// 数据起始字节表明采用何种方式传输
     if (c->protocol == negotiating_prot || c->transport == udp_transport)  {
         if ((unsigned char)c->rbuf[0] == (unsigned char)PROTOCOL_BINARY_REQ) {
             c->protocol = binary_prot;
@@ -3657,12 +3667,14 @@ static int try_read_command(conn *c) {
         }
     }
 
-    if (c->protocol == binary_prot) {
+    if (c->protocol == binary_prot) { // 二进制数据格式
         /* Do we have the complete packet header? */
+		// 确保数据有一个完整的包头
         if (c->rbytes < sizeof(c->binary_header)) {
             /* need more data! */
             return 0;
         } else {
+        	// 有完整的数据包
 #ifdef NEED_ALIGN
             if (((long)(c->rcurr)) % 8 != 0) {
                 /* must realign input buffer */
@@ -3689,11 +3701,14 @@ static int try_read_command(conn *c) {
                 fprintf(stderr, "\n");
             }
 
+			//得到完整的数据包头
             c->binary_header = *req;
+			// 网络字节序转换
             c->binary_header.request.keylen = ntohs(req->request.keylen);
             c->binary_header.request.bodylen = ntohl(req->request.bodylen);
             c->binary_header.request.cas = ntohll(req->request.cas);
 
+			// 校验魔数
             if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ) {
                 if (settings.verbose) {
                     fprintf(stderr, "Invalid magic:  %x\n",
@@ -3720,10 +3735,12 @@ static int try_read_command(conn *c) {
 
             dispatch_bin_command(c);
 
+			// 跟新为解析数据长度已经对应的起始指针
             c->rbytes -= sizeof(c->binary_header);
             c->rcurr += sizeof(c->binary_header);
         }
     } else {
+        //ascii数据格式
         char *el, *cont;
 
         if (c->rbytes == 0)
@@ -3752,9 +3769,10 @@ static int try_read_command(conn *c) {
             return 0;
         }
         cont = el + 1; // 下一行起始
-        if ((el - c->rcurr) > 1 && *(el - 1) == '\r') {
+        if ((el - c->rcurr) > 1 && *(el - 1) == '\r') { // \r\n
             el--;
         }
+		// 将\r\n的\r置为\0
         *el = '\0';
 
         assert(cont <= (c->rcurr + c->rbytes));
@@ -3762,6 +3780,7 @@ static int try_read_command(conn *c) {
         c->last_cmd_time = current_time;
         process_command(c, c->rcurr);
 
+		// 移动解析指针
         c->rbytes -= (cont - c->rcurr);
         c->rcurr = cont;
 
@@ -3821,12 +3840,14 @@ static enum try_read_result try_read_udp(conn *c) {
  *
  * @return enum try_read_result
  */
+ // 从socket中读取原始数据，这里会设置缓存区大小，以确保
+ // 可以保存socket数据
 static enum try_read_result try_read_network(conn *c) {
     enum try_read_result gotdata = READ_NO_DATA_RECEIVED;
     int res;
     int num_allocs = 0;
     assert(c != NULL);
-
+	//覆盖已的数据缓冲区
     if (c->rcurr != c->rbuf) {
         if (c->rbytes != 0) /* otherwise there's nothing to copy */
             memmove(c->rbuf, c->rcurr, c->rbytes);
@@ -3835,11 +3856,12 @@ static enum try_read_result try_read_network(conn *c) {
 
     while (1) {
         if (c->rbytes >= c->rsize) {
-            if (num_allocs == 4) {
+			// 缓冲区不够
+            if (num_allocs == 4) { // 连续4次缓冲区不足的话，直接返回
                 return gotdata;
             }
             ++num_allocs;
-            char *new_rbuf = realloc(c->rbuf, c->rsize * 2);
+            char *new_rbuf = realloc(c->rbuf, c->rsize * 2); // 指数增长缓冲区
             if (!new_rbuf) {
                 STATS_LOCK();
                 stats.malloc_fails++;
@@ -3856,15 +3878,16 @@ static enum try_read_result try_read_network(conn *c) {
             c->rsize *= 2;
         }
 
-        int avail = c->rsize - c->rbytes;
-        res = read(c->sfd, c->rbuf + c->rbytes, avail);
+        int avail = c->rsize - c->rbytes; // 可用的缓冲区长度
+        res = read(c->sfd, c->rbuf + c->rbytes, avail); // 开始读取socket
         if (res > 0) {
             pthread_mutex_lock(&c->thread->stats.mutex);
             c->thread->stats.bytes_read += res;
             pthread_mutex_unlock(&c->thread->stats.mutex);
-            gotdata = READ_DATA_RECEIVED;
+            gotdata = READ_DATA_RECEIVED; // 接收到数据
             c->rbytes += res;
-            if (res == avail) {
+            if (res == avail) { // 从socket中读取的数据将缓冲区用完，
+            					//说明很有可能有数据还要读取
                 continue;
             } else {
                 break;
@@ -3883,12 +3906,14 @@ static enum try_read_result try_read_network(conn *c) {
     return gotdata;
 }
 
+// 更新libevent事件循环事件监听类型
 static bool update_event(conn *c, const int new_flags) {
     assert(c != NULL);
 
     struct event_base *base = c->event.ev_base;
     if (c->ev_flags == new_flags)
         return true;
+	// 先删除，后更新，在添加
     if (event_del(&c->event) == -1) return false;
     event_set(&c->event, c->sfd, new_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
@@ -3941,6 +3966,7 @@ void do_accept_new_conns(const bool do_accept) {
  *   TRANSMIT_SOFT_ERROR Can't write any more right now.
  *   TRANSMIT_HARD_ERROR Can't write (c->state is set to conn_closing)
  */
+ // 将队列中的msgbuf发送
 static enum transmit_result transmit(conn *c) {
     assert(c != NULL);
 
@@ -3973,8 +3999,10 @@ static enum transmit_result transmit(conn *c) {
                 m->msg_iov->iov_base = (caddr_t)m->msg_iov->iov_base + res;
                 m->msg_iov->iov_len -= res;
             }
+			//发送了一个msgbuf，可能还有数据要发送，返回incomplete
             return TRANSMIT_INCOMPLETE;
         }
+		// 出错?
         if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 if (settings.verbose > 0)
@@ -4020,7 +4048,7 @@ static void drive_machine(conn *c) {
 
         switch(c->state) {
         case conn_listening:
-			// 新连接到来
+			// 新连接到来,一般是master线程获取客户端连接
             addrlen = sizeof(addr);
 #ifdef HAVE_ACCEPT4
             if (use_accept4) {
@@ -4077,6 +4105,7 @@ static void drive_machine(conn *c) {
             break;
 
         case conn_waiting:
+			// 有数据可读被唤醒，并进入read状态进行读数据
             if (!update_event(c, EV_READ | EV_PERSIST)) {
                 if (settings.verbose > 0)
                     fprintf(stderr, "Couldn't update event\n");
@@ -4089,14 +4118,15 @@ static void drive_machine(conn *c) {
             break;
 
         case conn_read:
+			// 开始读数据，根据具体情况进入后面不同状态
             res = IS_UDP(c->transport) ? try_read_udp(c) : try_read_network(c);
 
             switch (res) {
             case READ_NO_DATA_RECEIVED:
-                conn_set_state(c, conn_waiting);
+                conn_set_state(c, conn_waiting); // 没有读取到数据，继续投入睡眠
                 break;
-            case READ_DATA_RECEIVED:
-                conn_set_state(c, conn_parse_cmd);
+            case READ_DATA_RECEIVED: // 接收到数据，开始解析,进入parse状态
+                conn_set_state(c, conn_parse_cmd); //get命令进入conn_mwrite状态
                 break;
             case READ_ERROR:
                 conn_set_state(c, conn_closing);
@@ -4106,7 +4136,7 @@ static void drive_machine(conn *c) {
                 break;
             }
             break;
-
+			// 注意没有stop = true，会继续循环
         case conn_parse_cmd :
             if (try_read_command(c) == 0) {
                 /* wee need more data! */
@@ -4118,10 +4148,10 @@ static void drive_machine(conn *c) {
         case conn_new_cmd:
             /* Only process nreqs at a time to avoid starving other
                connections */
-
+			// master线程在状态conn_listening接收到连接，子线程进入这里
             --nreqs;
             if (nreqs >= 0) {
-                reset_cmd_handler(c);
+                reset_cmd_handler(c); // 设置成功进入waitting
             } else {
                 pthread_mutex_lock(&c->thread->stats.mutex);
                 c->thread->stats.conn_yields++;
@@ -4285,7 +4315,7 @@ static void drive_machine(conn *c) {
             switch (transmit(c)) {
             case TRANSMIT_COMPLETE:
                 if (c->state == conn_mwrite) {
-                    conn_release_items(c);
+                    conn_release_items(c); // 释放引用的item，将对应的引用计数减1
                     /* XXX:  I don't know why this wasn't the general case */
                     if(c->protocol == binary_prot) {
                         conn_set_state(c, c->write_and_go);

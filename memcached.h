@@ -147,15 +147,21 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
  * Possible states of a connection.
  */
 enum conn_states {
+	// 监听socket连接，master线程
     conn_listening,  /**< the socket which listens for connections */
+    // 新连接到来进行缓冲区初始化等操作，然后进入conn_waiting状态
     conn_new_cmd,    /**< Prepare connection for next command */
+    // 进入libevent事件循环，直到socket有数据可读
     conn_waiting,    /**< waiting for a readable socket */
+    // 开始读取socket数据
     conn_read,       /**< reading in a command line */
+    // 解析缓冲区数据
     conn_parse_cmd,  /**< try to parse a command from the input buffer */
     conn_write,      /**< writing out a simple response */
     conn_nread,      /**< reading in a fixed number of bytes */
     conn_swallow,    /**< swallowing unnecessary bytes w/o storing */
     conn_closing,    /**< closing this connection */
+    // msg write的意思
     conn_mwrite,     /**< writing out many items sequentially */
     conn_closed,     /**< connection is closed */
     conn_max_state   /**< Max state value (used for assertion) */
@@ -238,7 +244,7 @@ struct thread_stats {
     uint64_t          incr_misses;
     uint64_t          decr_misses;
     uint64_t          cas_misses;
-    uint64_t          bytes_read;
+    uint64_t          bytes_read; // 该线程从socket读取到的数据量
     uint64_t          bytes_written;
     uint64_t          flush_cmds;
     uint64_t          conn_yields; /* # of yields for connections (-R option)*/
@@ -258,7 +264,7 @@ struct stats {
     unsigned int  curr_conns;
     unsigned int  total_conns;
     uint64_t      rejected_conns;
-    uint64_t      malloc_fails;
+    uint64_t      malloc_fails; // 内存分配失败次数
     unsigned int  reserved_fds;
     unsigned int  conn_structs;
     uint64_t      get_cmds;
@@ -439,9 +445,14 @@ struct conn{
     short  which;   /** which events were just triggered */
 
 	/* 使用方法见memcached.c:try_read_network*/
+
+	// 从socket中读取出来的数据
     char   *rbuf;   /** buffer to read commands into */
+	// 指向rbuf中未解析的数据
     char   *rcurr;  /** but if we parsed some already, this is where we stopped */
+	// rbuf指向的内存大小
     int    rsize;   /** total allocated size of rbuf */
+	// 未解析的数据长度，即rcurr之后的数据
     int    rbytes;  /** how much data, starting from rcur, do we have unparsed */
 
     char   *wbuf;
@@ -474,11 +485,14 @@ struct conn{
     int    iovused;   /* number of elements used in iov[] */
 
     struct msghdr *msglist;
+	// msglist数组大小
     int    msgsize;   /* number of elements allocated in msglist[] */
+	// msglist已经使用的数据个数
     int    msgused;   /* number of elements used in msglist[] */
     int    msgcurr;   /* element in msglist[] being transmitted now */
     int    msgbytes;  /* number of bytes in current msg */
 
+	// 返回给客户端的item
     item   **ilist;   /* list of items to write out */
     int    isize;
     item   **icurr;

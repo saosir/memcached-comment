@@ -465,7 +465,7 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
     }
 
 	// 将新连接的socket分发到工作线程采用的是循环的策略
-	// 为什么不加个负载均衡
+	// 为什么不加个负载均衡?
     int tid = (last_thread + 1) % settings.num_threads;
 
     LIBEVENT_THREAD *thread = threads + tid;

@@ -265,7 +265,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     p = &slabclass[id];
     assert(p->sl_curr == 0 || ((item *)p->slots)->slabs_clsid == 0);
 
-/*  从空闲链表slots中返回一个item*/
+	/*  从空闲链表slots中返回一个item*/
     /* fail unless we have space at the end of a recently allocated page,
        we have something on our freelist, or we could allocate a new page */
     if (! (p->sl_curr != 0 || do_slabs_newslab(id) != 0)) {
