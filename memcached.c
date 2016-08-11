@@ -2961,6 +2961,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
                                         it->nbytes, ITEM_get_cas(it));
                   if (add_iov(c, "VALUE ", 6) != 0 ||
                       add_iov(c, ITEM_key(it), it->nkey) != 0 ||
+                      /*注意这里同时返回了nbytes的数据，数据长度为it->nsuffix+it->nbytes */
                       add_iov(c, ITEM_suffix(it), it->nsuffix + it->nbytes) != 0)
                       {
                           item_remove(it);
@@ -4921,8 +4922,10 @@ static void usage_license(void) {
     return;
 }
 
+// 将pid保存到pid_file中
 static void save_pid(const char *pid_file) {
     FILE *fp;
+	// 将原有的实例关闭
     if (access(pid_file, F_OK) == 0) {
         if ((fp = fopen(pid_file, "r")) != NULL) {
             char buffer[1024];
@@ -4943,7 +4946,7 @@ static void save_pid(const char *pid_file) {
      */
     char tmp_pid_file[1024];
     snprintf(tmp_pid_file, sizeof(tmp_pid_file), "%s.tmp", pid_file);
-
+	//保存
     if ((fp = fopen(tmp_pid_file, "w")) == NULL) {
         vperror("Could not open the pid file %s for writing", tmp_pid_file);
         return;
