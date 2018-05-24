@@ -107,7 +107,7 @@ time_t process_started;     /* when the process was started */
 conn **conns;
 
 struct slab_rebalance slab_rebal;
-volatile int slab_rebalance_signal; // ÕıÔÚµ÷ÕûslabÖ®¼äµÄÄÚ´æÒ³
+volatile int slab_rebalance_signal; // æ­£åœ¨è°ƒæ•´slabä¹‹é—´çš„å†…å­˜é¡µ
 
 /** file scope variables **/
 static conn *listen_conn = NULL;
@@ -253,7 +253,7 @@ static int add_msghdr(conn *c)
     assert(c != NULL);
 
     if (c->msgsize == c->msgused) {
-		//msglistÒÑ¾­Ê¹ÓÃÍê£¬Ö¸ÊıÔö³¤
+		//msglistå·²ç»ä½¿ç”¨å®Œï¼ŒæŒ‡æ•°å¢é•¿
         msg = realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr));
         if (! msg) {
             STATS_LOCK();
@@ -490,7 +490,7 @@ static void conn_release_items(conn *c) {
         c->item = 0;
     }
 
-	//ÊÍ·ÅËùÓĞitemÏî
+	//é‡Šæ”¾æ‰€æœ‰itemé¡¹
     while (c->ileft > 0) {
         item *it = *(c->icurr);
         assert((it->it_flags & ITEM_SLABBED) == 0);
@@ -597,12 +597,12 @@ static void conn_shrink(conn *c) {
 
     if (IS_UDP(c->transport))
         return;
-	//ÄÚ´ærbufÌ«´ó£¬ÊÊµ±µÄ±äĞ¡
+	//å†…å­˜rbufå¤ªå¤§ï¼Œé€‚å½“çš„å˜å°
     if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
         char *newbuf;
 
         if (c->rcurr != c->rbuf)
-            memmove(c->rbuf, c->rcurr, (size_t)c->rbytes); // ½«rcurrºóÃæÎ´½âÎöµÄÊı¾İÇ°ÒÆ
+            memmove(c->rbuf, c->rcurr, (size_t)c->rbytes); // å°†rcurråé¢æœªè§£æçš„æ•°æ®å‰ç§»
 
         newbuf = (char *)realloc((void *)c->rbuf, DATA_BUFFER_SIZE);
 
@@ -623,7 +623,7 @@ static void conn_shrink(conn *c) {
     /* TODO check error condition? */
     }
 
-	//Í¨¹ısendmsgÅúÁ¿·¢ËÍµÄ  
+	//é€šè¿‡sendmsgæ‰¹é‡å‘é€çš„  
     if (c->msgsize > MSG_LIST_HIGHWAT) {
         struct msghdr *newbuf = (struct msghdr *) realloc((void *)c->msglist, MSG_LIST_INITIAL * sizeof(c->msglist[0]));
         if (newbuf) {
@@ -632,7 +632,7 @@ static void conn_shrink(conn *c) {
         }
     /* TODO check error condition? */
     }
-	//msghdrÀïÃæiovµÄÊıÁ¿  
+	//msghdré‡Œé¢iovçš„æ•°é‡  
     if (c->iovsize > IOV_LIST_HIGHWAT) {
         struct iovec *newbuf = (struct iovec *) realloc((void *)c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0]));
         if (newbuf) {
@@ -666,7 +666,7 @@ static const char *state_text(enum conn_states state) {
  * processing that needs to happen on certain state transitions can
  * happen here.
  */
- // ÉèÖÃconnection×´Ì¬»úµÄ×´Ì¬
+ // è®¾ç½®connectionçŠ¶æ€æœºçš„çŠ¶æ€
 static void conn_set_state(conn *c, enum conn_states state) {
     assert(c != NULL);
     assert(state >= conn_listening && state < conn_max_state);
@@ -2256,7 +2256,7 @@ static void complete_nread_binary(conn *c) {
     }
 }
 
-// ÖØÖÃ³õÊ¼»¯Á¬½Ó
+// é‡ç½®åˆå§‹åŒ–è¿æ¥
 static void reset_cmd_handler(conn *c) {
     c->cmd = -1;
     c->substate = bin_no_state;
@@ -2266,7 +2266,7 @@ static void reset_cmd_handler(conn *c) {
     }
     conn_shrink(c);
     if (c->rbytes > 0) {
-		// Èç¹û»º³åÇøÓĞÊı¾İ£¬½øÈë½âÎö×´Ì¬
+		// å¦‚æœç¼“å†²åŒºæœ‰æ•°æ®ï¼Œè¿›å…¥è§£æçŠ¶æ€
         conn_set_state(c, conn_parse_cmd);
     } else {
         conn_set_state(c, conn_waiting);
@@ -2436,7 +2436,7 @@ typedef struct token_s {
  *      command  = tokens[ix].value;
  *   }
  */
- // ·Ö´Êº¯Êı£¬·µ»Ø·Ö´ÊµÄÊıÁ¿
+ // åˆ†è¯å‡½æ•°ï¼Œè¿”å›åˆ†è¯çš„æ•°é‡
 static size_t tokenize_command(char *command, token_t *tokens, const size_t max_tokens) {
     char *s, *e;
     size_t ntokens = 0;
@@ -2464,7 +2464,7 @@ static size_t tokenize_command(char *command, token_t *tokens, const size_t max_
         e++;
     }
 
-	// ×îºóÒ»¸ö·Ö´Ê
+	// æœ€åä¸€ä¸ªåˆ†è¯
     if (s != e) {
         tokens[ntokens].value = s;
         tokens[ntokens].length = e - s;
@@ -2863,7 +2863,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
     size_t nkey;
     int i = 0;
     item *it;
-    token_t *key_token = &tokens[KEY_TOKEN];// KEY_TOKEN==1£¬0Îª"get"»òÕß"bget"
+    token_t *key_token = &tokens[KEY_TOKEN];// KEY_TOKEN==1ï¼Œ0ä¸º"get"æˆ–è€…"bget"
     char *suffix;
     assert(c != NULL);
 
@@ -2887,7 +2887,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
             }
             if (it) {
                 if (i >= c->isize) {
-					// ·µ»Ø¸ø¿Í»§¶ËµÄitem»º³åÇø²»×ã£¬Ö¸ÊıÔö³¤
+					// è¿”å›ç»™å®¢æˆ·ç«¯çš„itemç¼“å†²åŒºä¸è¶³ï¼ŒæŒ‡æ•°å¢é•¿
                     item **new_list = realloc(c->ilist, sizeof(item *) * c->isize * 2);
                     if (new_list) {
                         c->isize *= 2;
@@ -2961,7 +2961,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
                                         it->nbytes, ITEM_get_cas(it));
                   if (add_iov(c, "VALUE ", 6) != 0 ||
                       add_iov(c, ITEM_key(it), it->nkey) != 0 ||
-                      /*×¢ÒâÕâÀïÍ¬Ê±·µ»ØÁËnbytesµÄÊı¾İ£¬Êı¾İ³¤¶ÈÎªit->nsuffix+it->nbytes */
+                      /*æ³¨æ„è¿™é‡ŒåŒæ—¶è¿”å›äº†nbytesçš„æ•°æ®ï¼Œæ•°æ®é•¿åº¦ä¸ºit->nsuffix+it->nbytes */
                       add_iov(c, ITEM_suffix(it), it->nsuffix + it->nbytes) != 0)
                       {
                           item_remove(it);
@@ -2984,7 +2984,7 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens,
                 c->thread->stats.slab_stats[it->slabs_clsid].get_hits++;
                 c->thread->stats.get_cmds++;
                 pthread_mutex_unlock(&c->thread->stats.mutex);
-                item_update(it); // ÓĞ¿Í»§¶Ë·ÃÎÊÕâ¸öitem£¬¸üĞÂÆä¶ÔÓ¦µÄ·ÃÎÊÊ±¼ä
+                item_update(it); // æœ‰å®¢æˆ·ç«¯è®¿é—®è¿™ä¸ªitemï¼Œæ›´æ–°å…¶å¯¹åº”çš„è®¿é—®æ—¶é—´
                 *(c->ilist + i) = it;
                 i++;
 
@@ -3404,7 +3404,7 @@ static void process_slabs_automove_command(conn *c, token_t *tokens, const size_
     return;
 }
 
-// ½âÎöasciiÃüÁî
+// è§£æasciiå‘½ä»¤
 static void process_command(conn *c, char *command) {
 
     token_t tokens[MAX_TOKENS];
@@ -3435,11 +3435,11 @@ static void process_command(conn *c, char *command) {
     if (ntokens >= 3 &&
         ((strcmp(tokens[COMMAND_TOKEN].value, "get") == 0) ||
          (strcmp(tokens[COMMAND_TOKEN].value, "bget") == 0))) {
-		// Ö´ĞĞgetÃüÁî
+		// æ‰§è¡Œgetå‘½ä»¤
         process_get_command(c, tokens, ntokens, false);
 
     } else if ((ntokens == 6 || ntokens == 7) &&
-               ((strcmp(tokens[COMMAND_TOKEN].value, "add") == 0 && (comm = NREAD_ADD)) || //commÎª¸³Öµ
+               ((strcmp(tokens[COMMAND_TOKEN].value, "add") == 0 && (comm = NREAD_ADD)) || //commä¸ºèµ‹å€¼
                 (strcmp(tokens[COMMAND_TOKEN].value, "set") == 0 && (comm = NREAD_SET)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "replace") == 0 && (comm = NREAD_REPLACE)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "prepend") == 0 && (comm = NREAD_PREPEND)) ||
@@ -3654,7 +3654,7 @@ static int try_read_command(conn *c) {
     assert(c != NULL);
     assert(c->rcurr <= (c->rbuf + c->rsize));
     assert(c->rbytes > 0);
-	// Êı¾İÆğÊ¼×Ö½Ú±íÃ÷²ÉÓÃºÎÖÖ·½Ê½´«Êä
+	// æ•°æ®èµ·å§‹å­—èŠ‚è¡¨æ˜é‡‡ç”¨ä½•ç§æ–¹å¼ä¼ è¾“
     if (c->protocol == negotiating_prot || c->transport == udp_transport)  {
         if ((unsigned char)c->rbuf[0] == (unsigned char)PROTOCOL_BINARY_REQ) {
             c->protocol = binary_prot;
@@ -3668,14 +3668,14 @@ static int try_read_command(conn *c) {
         }
     }
 
-    if (c->protocol == binary_prot) { // ¶ş½øÖÆÊı¾İ¸ñÊ½
+    if (c->protocol == binary_prot) { // äºŒè¿›åˆ¶æ•°æ®æ ¼å¼
         /* Do we have the complete packet header? */
-		// È·±£Êı¾İÓĞÒ»¸öÍêÕûµÄ°üÍ·
+		// ç¡®ä¿æ•°æ®æœ‰ä¸€ä¸ªå®Œæ•´çš„åŒ…å¤´
         if (c->rbytes < sizeof(c->binary_header)) {
             /* need more data! */
             return 0;
         } else {
-        	// ÓĞÍêÕûµÄÊı¾İ°ü
+        	// æœ‰å®Œæ•´çš„æ•°æ®åŒ…
 #ifdef NEED_ALIGN
             if (((long)(c->rcurr)) % 8 != 0) {
                 /* must realign input buffer */
@@ -3702,14 +3702,14 @@ static int try_read_command(conn *c) {
                 fprintf(stderr, "\n");
             }
 
-			//µÃµ½ÍêÕûµÄÊı¾İ°üÍ·
+			//å¾—åˆ°å®Œæ•´çš„æ•°æ®åŒ…å¤´
             c->binary_header = *req;
-			// ÍøÂç×Ö½ÚĞò×ª»»
+			// ç½‘ç»œå­—èŠ‚åºè½¬æ¢
             c->binary_header.request.keylen = ntohs(req->request.keylen);
             c->binary_header.request.bodylen = ntohl(req->request.bodylen);
             c->binary_header.request.cas = ntohll(req->request.cas);
 
-			// Ğ£ÑéÄ§Êı
+			// æ ¡éªŒé­”æ•°
             if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ) {
                 if (settings.verbose) {
                     fprintf(stderr, "Invalid magic:  %x\n",
@@ -3736,12 +3736,12 @@ static int try_read_command(conn *c) {
 
             dispatch_bin_command(c);
 
-			// ¸úĞÂÎª½âÎöÊı¾İ³¤¶ÈÒÑ¾­¶ÔÓ¦µÄÆğÊ¼Ö¸Õë
+			// è·Ÿæ–°ä¸ºè§£ææ•°æ®é•¿åº¦å·²ç»å¯¹åº”çš„èµ·å§‹æŒ‡é’ˆ
             c->rbytes -= sizeof(c->binary_header);
             c->rcurr += sizeof(c->binary_header);
         }
     } else {
-        //asciiÊı¾İ¸ñÊ½
+        //asciiæ•°æ®æ ¼å¼
         char *el, *cont;
 
         if (c->rbytes == 0)
@@ -3769,11 +3769,11 @@ static int try_read_command(conn *c) {
 
             return 0;
         }
-        cont = el + 1; // ÏÂÒ»ĞĞÆğÊ¼
+        cont = el + 1; // ä¸‹ä¸€è¡Œèµ·å§‹
         if ((el - c->rcurr) > 1 && *(el - 1) == '\r') { // \r\n
             el--;
         }
-		// ½«\r\nµÄ\rÖÃÎª\0
+		// å°†\r\nçš„\rç½®ä¸º\0
         *el = '\0';
 
         assert(cont <= (c->rcurr + c->rbytes));
@@ -3781,7 +3781,7 @@ static int try_read_command(conn *c) {
         c->last_cmd_time = current_time;
         process_command(c, c->rcurr);
 
-		// ÒÆ¶¯½âÎöÖ¸Õë
+		// ç§»åŠ¨è§£ææŒ‡é’ˆ
         c->rbytes -= (cont - c->rcurr);
         c->rcurr = cont;
 
@@ -3841,14 +3841,14 @@ static enum try_read_result try_read_udp(conn *c) {
  *
  * @return enum try_read_result
  */
- // ´ÓsocketÖĞ¶ÁÈ¡Ô­Ê¼Êı¾İ£¬ÕâÀï»áÉèÖÃ»º´æÇø´óĞ¡£¬ÒÔÈ·±£
- // ¿ÉÒÔ±£´æsocketÊı¾İ
+ // ä»socketä¸­è¯»å–åŸå§‹æ•°æ®ï¼Œè¿™é‡Œä¼šè®¾ç½®ç¼“å­˜åŒºå¤§å°ï¼Œä»¥ç¡®ä¿
+ // å¯ä»¥ä¿å­˜socketæ•°æ®
 static enum try_read_result try_read_network(conn *c) {
     enum try_read_result gotdata = READ_NO_DATA_RECEIVED;
     int res;
     int num_allocs = 0;
     assert(c != NULL);
-	//¸²¸ÇÒÑµÄÊı¾İ»º³åÇø
+	//è¦†ç›–å·²çš„æ•°æ®ç¼“å†²åŒº
     if (c->rcurr != c->rbuf) {
         if (c->rbytes != 0) /* otherwise there's nothing to copy */
             memmove(c->rbuf, c->rcurr, c->rbytes);
@@ -3857,12 +3857,12 @@ static enum try_read_result try_read_network(conn *c) {
 
     while (1) {
         if (c->rbytes >= c->rsize) {
-			// »º³åÇø²»¹»
-            if (num_allocs == 4) { // Á¬Ğø4´Î»º³åÇø²»×ãµÄ»°£¬Ö±½Ó·µ»Ø
+			// ç¼“å†²åŒºä¸å¤Ÿ
+            if (num_allocs == 4) { // è¿ç»­4æ¬¡ç¼“å†²åŒºä¸è¶³çš„è¯ï¼Œç›´æ¥è¿”å›
                 return gotdata;
             }
             ++num_allocs;
-            char *new_rbuf = realloc(c->rbuf, c->rsize * 2); // Ö¸ÊıÔö³¤»º³åÇø
+            char *new_rbuf = realloc(c->rbuf, c->rsize * 2); // æŒ‡æ•°å¢é•¿ç¼“å†²åŒº
             if (!new_rbuf) {
                 STATS_LOCK();
                 stats.malloc_fails++;
@@ -3879,16 +3879,16 @@ static enum try_read_result try_read_network(conn *c) {
             c->rsize *= 2;
         }
 
-        int avail = c->rsize - c->rbytes; // ¿ÉÓÃµÄ»º³åÇø³¤¶È
-        res = read(c->sfd, c->rbuf + c->rbytes, avail); // ¿ªÊ¼¶ÁÈ¡socket
+        int avail = c->rsize - c->rbytes; // å¯ç”¨çš„ç¼“å†²åŒºé•¿åº¦
+        res = read(c->sfd, c->rbuf + c->rbytes, avail); // å¼€å§‹è¯»å–socket
         if (res > 0) {
             pthread_mutex_lock(&c->thread->stats.mutex);
             c->thread->stats.bytes_read += res;
             pthread_mutex_unlock(&c->thread->stats.mutex);
-            gotdata = READ_DATA_RECEIVED; // ½ÓÊÕµ½Êı¾İ
+            gotdata = READ_DATA_RECEIVED; // æ¥æ”¶åˆ°æ•°æ®
             c->rbytes += res;
-            if (res == avail) { // ´ÓsocketÖĞ¶ÁÈ¡µÄÊı¾İ½«»º³åÇøÓÃÍê£¬
-            					//ËµÃ÷ºÜÓĞ¿ÉÄÜÓĞÊı¾İ»¹Òª¶ÁÈ¡
+            if (res == avail) { // ä»socketä¸­è¯»å–çš„æ•°æ®å°†ç¼“å†²åŒºç”¨å®Œï¼Œ
+            					//è¯´æ˜å¾ˆæœ‰å¯èƒ½æœ‰æ•°æ®è¿˜è¦è¯»å–
                 continue;
             } else {
                 break;
@@ -3907,14 +3907,14 @@ static enum try_read_result try_read_network(conn *c) {
     return gotdata;
 }
 
-// ¸üĞÂlibeventÊÂ¼şÑ­»·ÊÂ¼ş¼àÌıÀàĞÍ
+// æ›´æ–°libeventäº‹ä»¶å¾ªç¯äº‹ä»¶ç›‘å¬ç±»å‹
 static bool update_event(conn *c, const int new_flags) {
     assert(c != NULL);
 
     struct event_base *base = c->event.ev_base;
     if (c->ev_flags == new_flags)
         return true;
-	// ÏÈÉ¾³ı£¬ºó¸üĞÂ£¬ÔÚÌí¼Ó
+	// å…ˆåˆ é™¤ï¼Œåæ›´æ–°ï¼Œåœ¨æ·»åŠ 
     if (event_del(&c->event) == -1) return false;
     event_set(&c->event, c->sfd, new_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
@@ -3967,7 +3967,7 @@ void do_accept_new_conns(const bool do_accept) {
  *   TRANSMIT_SOFT_ERROR Can't write any more right now.
  *   TRANSMIT_HARD_ERROR Can't write (c->state is set to conn_closing)
  */
- // ½«¶ÓÁĞÖĞµÄmsgbuf·¢ËÍ
+ // å°†é˜Ÿåˆ—ä¸­çš„msgbufå‘é€
 static enum transmit_result transmit(conn *c) {
     assert(c != NULL);
 
@@ -4000,10 +4000,10 @@ static enum transmit_result transmit(conn *c) {
                 m->msg_iov->iov_base = (caddr_t)m->msg_iov->iov_base + res;
                 m->msg_iov->iov_len -= res;
             }
-			//·¢ËÍÁËÒ»¸ömsgbuf£¬¿ÉÄÜ»¹ÓĞÊı¾İÒª·¢ËÍ£¬·µ»Øincomplete
+			//å‘é€äº†ä¸€ä¸ªmsgbufï¼Œå¯èƒ½è¿˜æœ‰æ•°æ®è¦å‘é€ï¼Œè¿”å›incomplete
             return TRANSMIT_INCOMPLETE;
         }
-		// ³ö´í?
+		// å‡ºé”™?
         if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 if (settings.verbose > 0)
@@ -4028,7 +4028,7 @@ static enum transmit_result transmit(conn *c) {
     }
 }
 
-// ×´Ì¬»ú£¬¶ÔËùÓĞÊÂ¼ş½øĞĞ´¦Àí
+// çŠ¶æ€æœºï¼Œå¯¹æ‰€æœ‰äº‹ä»¶è¿›è¡Œå¤„ç†
 static void drive_machine(conn *c) {
     bool stop = false;
     int sfd;
@@ -4049,7 +4049,7 @@ static void drive_machine(conn *c) {
 
         switch(c->state) {
         case conn_listening:
-			// ĞÂÁ¬½Óµ½À´,Ò»°ãÊÇmasterÏß³Ì»ñÈ¡¿Í»§¶ËÁ¬½Ó
+			// æ–°è¿æ¥åˆ°æ¥,ä¸€èˆ¬æ˜¯masterçº¿ç¨‹è·å–å®¢æˆ·ç«¯è¿æ¥
             addrlen = sizeof(addr);
 #ifdef HAVE_ACCEPT4
             if (use_accept4) {
@@ -4097,7 +4097,7 @@ static void drive_machine(conn *c) {
                 stats.rejected_conns++;
                 STATS_UNLOCK();
             } else {
-            	// ĞÂ¿Í»§¶ËÁ¬½Óµ½À´£¬·ÖÅä¸ø¸÷¸ö×ÓÏß³Ì
+            	// æ–°å®¢æˆ·ç«¯è¿æ¥åˆ°æ¥ï¼Œåˆ†é…ç»™å„ä¸ªå­çº¿ç¨‹
                 dispatch_conn_new(sfd, conn_new_cmd, EV_READ | EV_PERSIST,
                                      DATA_BUFFER_SIZE, tcp_transport);
             }
@@ -4106,7 +4106,7 @@ static void drive_machine(conn *c) {
             break;
 
         case conn_waiting:
-			// ÓĞÊı¾İ¿É¶Á±»»½ĞÑ£¬²¢½øÈëread×´Ì¬½øĞĞ¶ÁÊı¾İ
+			// æœ‰æ•°æ®å¯è¯»è¢«å”¤é†’ï¼Œå¹¶è¿›å…¥readçŠ¶æ€è¿›è¡Œè¯»æ•°æ®
             if (!update_event(c, EV_READ | EV_PERSIST)) {
                 if (settings.verbose > 0)
                     fprintf(stderr, "Couldn't update event\n");
@@ -4119,15 +4119,15 @@ static void drive_machine(conn *c) {
             break;
 
         case conn_read:
-			// ¿ªÊ¼¶ÁÊı¾İ£¬¸ù¾İ¾ßÌåÇé¿ö½øÈëºóÃæ²»Í¬×´Ì¬
+			// å¼€å§‹è¯»æ•°æ®ï¼Œæ ¹æ®å…·ä½“æƒ…å†µè¿›å…¥åé¢ä¸åŒçŠ¶æ€
             res = IS_UDP(c->transport) ? try_read_udp(c) : try_read_network(c);
 
             switch (res) {
             case READ_NO_DATA_RECEIVED:
-                conn_set_state(c, conn_waiting); // Ã»ÓĞ¶ÁÈ¡µ½Êı¾İ£¬¼ÌĞøÍ¶ÈëË¯Ãß
+                conn_set_state(c, conn_waiting); // æ²¡æœ‰è¯»å–åˆ°æ•°æ®ï¼Œç»§ç»­æŠ•å…¥ç¡çœ 
                 break;
-            case READ_DATA_RECEIVED: // ½ÓÊÕµ½Êı¾İ£¬¿ªÊ¼½âÎö,½øÈëparse×´Ì¬
-                conn_set_state(c, conn_parse_cmd); //getÃüÁî½øÈëconn_mwrite×´Ì¬
+            case READ_DATA_RECEIVED: // æ¥æ”¶åˆ°æ•°æ®ï¼Œå¼€å§‹è§£æ,è¿›å…¥parseçŠ¶æ€
+                conn_set_state(c, conn_parse_cmd); //getå‘½ä»¤è¿›å…¥conn_mwriteçŠ¶æ€
                 break;
             case READ_ERROR:
                 conn_set_state(c, conn_closing);
@@ -4137,7 +4137,7 @@ static void drive_machine(conn *c) {
                 break;
             }
             break;
-			// ×¢ÒâÃ»ÓĞstop = true£¬»á¼ÌĞøÑ­»·
+			// æ³¨æ„æ²¡æœ‰stop = trueï¼Œä¼šç»§ç»­å¾ªç¯
         case conn_parse_cmd :
             if (try_read_command(c) == 0) {
                 /* wee need more data! */
@@ -4149,10 +4149,10 @@ static void drive_machine(conn *c) {
         case conn_new_cmd:
             /* Only process nreqs at a time to avoid starving other
                connections */
-			// masterÏß³ÌÔÚ×´Ì¬conn_listening½ÓÊÕµ½Á¬½Ó£¬×ÓÏß³Ì½øÈëÕâÀï
+			// masterçº¿ç¨‹åœ¨çŠ¶æ€conn_listeningæ¥æ”¶åˆ°è¿æ¥ï¼Œå­çº¿ç¨‹è¿›å…¥è¿™é‡Œ
             --nreqs;
             if (nreqs >= 0) {
-                reset_cmd_handler(c); // ÉèÖÃ³É¹¦½øÈëwaitting
+                reset_cmd_handler(c); // è®¾ç½®æˆåŠŸè¿›å…¥waitting
             } else {
                 pthread_mutex_lock(&c->thread->stats.mutex);
                 c->thread->stats.conn_yields++;
@@ -4316,7 +4316,7 @@ static void drive_machine(conn *c) {
             switch (transmit(c)) {
             case TRANSMIT_COMPLETE:
                 if (c->state == conn_mwrite) {
-                    conn_release_items(c); // ÊÍ·ÅÒıÓÃµÄitem£¬½«¶ÔÓ¦µÄÒıÓÃ¼ÆÊı¼õ1
+                    conn_release_items(c); // é‡Šæ”¾å¼•ç”¨çš„itemï¼Œå°†å¯¹åº”çš„å¼•ç”¨è®¡æ•°å‡1
                     /* XXX:  I don't know why this wasn't the general case */
                     if(c->protocol == binary_prot) {
                         conn_set_state(c, c->write_and_go);
@@ -4367,8 +4367,8 @@ static void drive_machine(conn *c) {
 
     return;
 }
-/* ·şÎñÆ÷½ÓÊÕsocket»Øµ÷£¬°üÀ¨ÁËËùÓĞsocketÊÂ¼şµÄ´¦Àí£¬
-* ¸ù¾İsocketµÄ×´Ì¬¡¢ÀàĞÍ¶Ô²»Í¬ÏûÏ¢×ö´¦Àí
+/* æœåŠ¡å™¨æ¥æ”¶socketå›è°ƒï¼ŒåŒ…æ‹¬äº†æ‰€æœ‰socketäº‹ä»¶çš„å¤„ç†ï¼Œ
+* æ ¹æ®socketçš„çŠ¶æ€ã€ç±»å‹å¯¹ä¸åŒæ¶ˆæ¯åšå¤„ç†
 */
 void event_handler(const int fd, const short which, void *arg) {
     conn *c;
@@ -4444,7 +4444,7 @@ static void maximize_sndbuf(const int sfd) {
         fprintf(stderr, "<%d send buffer was %d, now %d\n", sfd, old_size, last_good);
 }
 
-/** ´´½¨Ò»¸ö·şÎñÆ÷¼àÌısocket£¬·Åµ½masterÏß³ÌµÄÊÂ¼şÑ­»·¼àÌı
+/** åˆ›å»ºä¸€ä¸ªæœåŠ¡å™¨ç›‘å¬socketï¼Œæ”¾åˆ°masterçº¿ç¨‹çš„äº‹ä»¶å¾ªç¯ç›‘å¬
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
@@ -4582,10 +4582,10 @@ static int server_socket(const char *interface,
                                   UDP_READ_BUFFER_SIZE, transport);
             }
         } else {
-        	// ¼àÌısocket
+        	// ç›‘å¬socket
             if (!(listen_conn_add = conn_new(sfd, conn_listening,
                                              EV_READ | EV_PERSIST, 1,
-                                             transport, main_base /* masterÏß³ÌµÄÊÂ¼şÑ­»·*/))) {
+                                             transport, main_base /* masterçº¿ç¨‹çš„äº‹ä»¶å¾ªç¯*/))) {
                 fprintf(stderr, "failed to create listening connection\n");
                 exit(EXIT_FAILURE);
             }
@@ -4922,10 +4922,10 @@ static void usage_license(void) {
     return;
 }
 
-// ½«pid±£´æµ½pid_fileÖĞ
+// å°†pidä¿å­˜åˆ°pid_fileä¸­
 static void save_pid(const char *pid_file) {
     FILE *fp;
-	// ½«Ô­ÓĞµÄÊµÀı¹Ø±Õ
+	// å°†åŸæœ‰çš„å®ä¾‹å…³é—­
     if (access(pid_file, F_OK) == 0) {
         if ((fp = fopen(pid_file, "r")) != NULL) {
             char buffer[1024];
@@ -4946,7 +4946,7 @@ static void save_pid(const char *pid_file) {
      */
     char tmp_pid_file[1024];
     snprintf(tmp_pid_file, sizeof(tmp_pid_file), "%s.tmp", pid_file);
-	//±£´æ
+	//ä¿å­˜
     if ((fp = fopen(tmp_pid_file, "w")) == NULL) {
         vperror("Could not open the pid file %s for writing", tmp_pid_file);
         return;
@@ -5575,28 +5575,28 @@ int main (int argc, char **argv) {
         exit(EX_OSERR);
     }
     /* start up worker threads if MT mode */
-	// ´´½¨master/workerÄ£ĞÍ£¬³õÊ¼»¯¶à¸öworkerÏß³Ì
+	// åˆ›å»ºmaster/workeræ¨¡å‹ï¼Œåˆå§‹åŒ–å¤šä¸ªworkerçº¿ç¨‹
     thread_init(settings.num_threads, main_base);
 
-	// expand ¹şÏ£±íÏß³Ì£¬µ±¹şÏ£±í½ÚµãÊı´óÓÚÍ°ÊıµÄ1.5±¶¾Í¿ªÊ¼À©Õ¹
+	// expand å“ˆå¸Œè¡¨çº¿ç¨‹ï¼Œå½“å“ˆå¸Œè¡¨èŠ‚ç‚¹æ•°å¤§äºæ¡¶æ•°çš„1.5å€å°±å¼€å§‹æ‰©å±•
 	// hash_items >  (hashsize(hashpower) * 3) / 2
     if (start_assoc_maintenance_thread() == -1) {
         exit(EXIT_FAILURE);
     }
 
     if (settings.slab_reassign &&
-        start_slab_maintenance_thread() == -1) { // ÄÚ´æÒ³ÖØ·ÖÅä£¬¾ÍÊÇ½«²¿·Öslab¿ÕÏĞµÄ
-        										 // ÄÚ´æÒ³´ÓÒ»¸öslabÒÆµ½ÁíÍâÒ»¸öslabµ±
-        										 // ÖĞ
+        start_slab_maintenance_thread() == -1) { // å†…å­˜é¡µé‡åˆ†é…ï¼Œå°±æ˜¯å°†éƒ¨åˆ†slabç©ºé—²çš„
+        										 // å†…å­˜é¡µä»ä¸€ä¸ªslabç§»åˆ°å¦å¤–ä¸€ä¸ªslabå½“
+        										 // ä¸­
         exit(EXIT_FAILURE);
     }
 
     /* Run regardless of initializing it later */
-    init_lru_crawler(); // lru¶ÓÁĞ
+    init_lru_crawler(); // lrué˜Ÿåˆ—
 
     /* initialise clock event */
     clock_handler(0, 0, 0);
-	// ´´½¨¼àÌısocket»ñÈ¡¿Í»§¶ËµÄÁ¬½Ó
+	// åˆ›å»ºç›‘å¬socketè·å–å®¢æˆ·ç«¯çš„è¿æ¥
 
     /* create unix mode sockets after dropping privileges */
     if (settings.socketpath != NULL) {
@@ -5670,7 +5670,7 @@ int main (int argc, char **argv) {
     drop_privileges();
 
     /* enter the event loop */
-	// ¹¤×÷Ïß³ÌÆô¶¯
+	// å·¥ä½œçº¿ç¨‹å¯åŠ¨
     if (event_base_loop(main_base, 0) != 0) {
         retval = EXIT_FAILURE;
     }

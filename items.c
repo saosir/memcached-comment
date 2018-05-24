@@ -23,41 +23,41 @@ static void item_unlink_q(item *it);
 
 
 typedef struct {
-	//±»LRUÌßµôµÄitem Êı£¬²Î¿´do_item_allocÖĞµÄÊ¹ÓÃ(evictÓ¢ÎÄÊÇÇıÖğ/ ÒÀ·¨ÊÕ»ØµÄÒâË¼)
+	//è¢«LRUè¸¢æ‰çš„item æ•°ï¼Œå‚çœ‹do_item_allocä¸­çš„ä½¿ç”¨(evictè‹±æ–‡æ˜¯é©±é€/ ä¾æ³•æ”¶å›çš„æ„æ€)
     uint64_t evicted; 
-    //¼´Ê¹Ò»¸öitemµÄexptimeÉèÖÃÎª0£¬Ò²ÊÇ»á±»ÌßµÄ  
-    //±»ÌßµÄitemÖĞ£¬³¬Ê±Ê±¼ä(exptime)²»Îª0µÄitemÊı  
+    //å³ä½¿ä¸€ä¸ªitemçš„exptimeè®¾ç½®ä¸º0ï¼Œä¹Ÿæ˜¯ä¼šè¢«è¸¢çš„  
+    //è¢«è¸¢çš„itemä¸­ï¼Œè¶…æ—¶æ—¶é—´(exptime)ä¸ä¸º0çš„itemæ•°  
     uint64_t evicted_nonzero;
-	//×îºóÒ»´ÎÌßitemÊ±£¬±»ÌßµÄitemÒÑ¾­¹ıÆÚ¶à¾ÃÁË  
+	//æœ€åä¸€æ¬¡è¸¢itemæ—¶ï¼Œè¢«è¸¢çš„itemå·²ç»è¿‡æœŸå¤šä¹…äº†  
     //itemstats[id].evicted_time = current_time - search->time; 
     rel_time_t evicted_time;
-    uint64_t reclaimed;//ÔÚÉêÇëitemÊ±£¬·¢ÏÖ¹ıÆÚ²¢»ØÊÕµÄitemÊıÁ¿  
-    uint64_t outofmemory;//ÎªitemÉêÇëÄÚ´æ£¬Ê§°ÜµÄ´ÎÊı  
-    uint64_t tailrepairs;//ĞèÒªĞŞ¸´µÄitemÊıÁ¿(³ı·ÇworkerÏß³ÌÓĞÎÊÌâ·ñÔòÒ»°ãÎª0)  
+    uint64_t reclaimed;//åœ¨ç”³è¯·itemæ—¶ï¼Œå‘ç°è¿‡æœŸå¹¶å›æ”¶çš„itemæ•°é‡  
+    uint64_t outofmemory;//ä¸ºitemç”³è¯·å†…å­˜ï¼Œå¤±è´¥çš„æ¬¡æ•°  
+    uint64_t tailrepairs;//éœ€è¦ä¿®å¤çš„itemæ•°é‡(é™¤éworkerçº¿ç¨‹æœ‰é—®é¢˜å¦åˆ™ä¸€èˆ¬ä¸º0)  
 
-	// evict ÊÇÒÀ·¨ÇıÖğµÄÒâË¼
-    //Ö±µ½±»³¬Ê±É¾³ıÊ±¶¼»¹Ã»±»·ÃÎÊ¹ıµÄitemÊıÁ¿(ITEM_FETCHED)  
+	// evict æ˜¯ä¾æ³•é©±é€çš„æ„æ€
+    //ç›´åˆ°è¢«è¶…æ—¶åˆ é™¤æ—¶éƒ½è¿˜æ²¡è¢«è®¿é—®è¿‡çš„itemæ•°é‡(ITEM_FETCHED)  
     uint64_t expired_unfetched;  
-    //Ö±µ½±»LRUÌß³öÊ±¶¼»¹Ã»ÓĞ±»·ÃÎÊ¹ıµÄitemÊıÁ¿ (ITEM_FETCHED) 
+    //ç›´åˆ°è¢«LRUè¸¢å‡ºæ—¶éƒ½è¿˜æ²¡æœ‰è¢«è®¿é—®è¿‡çš„itemæ•°é‡ (ITEM_FETCHED) 
     uint64_t evicted_unfetched;  
       
-    uint64_t crawler_reclaimed;//±»LRUÅÀ³æ·¢ÏÖµÄ¹ıÆÚitemÊıÁ¿ 
+    uint64_t crawler_reclaimed;//è¢«LRUçˆ¬è™«å‘ç°çš„è¿‡æœŸitemæ•°é‡ 
 
 } itemstats_t;
 
-// LRU¶ÓÁĞ
-// °´time×Ö¶ÎÅÅĞòÄæĞò,Î²²¿ÊÇ×î²»³£ÓÃµÄitem
-// lruÁ´±íÍ·
+// LRUé˜Ÿåˆ—
+// æŒ‰timeå­—æ®µæ’åºé€†åº,å°¾éƒ¨æ˜¯æœ€ä¸å¸¸ç”¨çš„item
+// lrué“¾è¡¨å¤´
 static item *heads[LARGEST_ID];
-// lruÁ´±íÎ²
+// lrué“¾è¡¨å°¾
 static item *tails[LARGEST_ID];
-// lruÅÀ³æ£¬Î±½Úµã
+// lruçˆ¬è™«ï¼Œä¼ªèŠ‚ç‚¹
 static crawler crawlers[LARGEST_ID]; 
 static itemstats_t itemstats[LARGEST_ID];
-// lruÁ´±í½Úµã¸öÊı
+// lrué“¾è¡¨èŠ‚ç‚¹ä¸ªæ•°
 static unsigned int sizes[LARGEST_ID];
 
-// lru¶ÓÁĞÖĞÅÀ³æÊıÁ¿
+// lrué˜Ÿåˆ—ä¸­çˆ¬è™«æ•°é‡
 static int crawler_count = 0;
 static volatile int do_run_lru_crawler_thread = 0;
 static int lru_crawler_initialized = 0;
@@ -125,13 +125,13 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
 
     mutex_lock(&cache_lock);
     /* do a quick check if we have any expired items in the tail.. */
-    int tries = 5; // ²é¿´ÊÇ·ñÓĞ³¬Ê±µÄitem£¬³¢ÊÔ5´Î
+    int tries = 5; // æŸ¥çœ‹æ˜¯å¦æœ‰è¶…æ—¶çš„itemï¼Œå°è¯•5æ¬¡
     int tried_alloc = 0;
     item *search;
     void *hold_lock = NULL;
     rel_time_t oldest_live = settings.oldest_live;
 
-    search = tails[id]; // Î²²¿Îª×î²»³£ÓÃitem
+    search = tails[id]; // å°¾éƒ¨ä¸ºæœ€ä¸å¸¸ç”¨item
     /* We walk up *only* for locked items. Never searching for expired.
      * Waste of CPU for almost all deployments */
     for (; tries > 0 && search != NULL; tries--, search=search->prev) {
@@ -164,31 +164,31 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
             continue;
         }
 
-		// ÕÒµ½µÄitem¹ıÆÚ
+		// æ‰¾åˆ°çš„itemè¿‡æœŸ
         /* Expired or flushed */
-		// ÎªÊ²Ã´ÕâÃ´ÅĞ¶Ï¿´do_item_getº¯Êı×¢ÊÍ
-        if ((search->exptime != 0 && search->exptime < current_time) // item³¬Ê±
-            || (search->time <= oldest_live && oldest_live <= current_time)) {//itemÔÚ½ÓÊÕflush_allÃüÁîÖ®Ç°ÒÑ¾­´æÔÚ
+		// ä¸ºä»€ä¹ˆè¿™ä¹ˆåˆ¤æ–­çœ‹do_item_getå‡½æ•°æ³¨é‡Š
+        if ((search->exptime != 0 && search->exptime < current_time) // itemè¶…æ—¶
+            || (search->time <= oldest_live && oldest_live <= current_time)) {//itemåœ¨æ¥æ”¶flush_allå‘½ä»¤ä¹‹å‰å·²ç»å­˜åœ¨
             itemstats[id].reclaimed++;
             if ((search->it_flags & ITEM_FETCHED) == 0) {
                 itemstats[id].expired_unfetched++;
             }
             it = search;
             slabs_adjust_mem_requested(it->slabs_clsid, ITEM_ntotal(it), ntotal);
-            do_item_unlink_nolock(it, hv); // Ç°Ãærefcount_incr(&search->refcount) == 2ËùÒÔ²»»áslab_free
+            do_item_unlink_nolock(it, hv); // å‰é¢refcount_incr(&search->refcount) == 2æ‰€ä»¥ä¸ä¼šslab_free
             /* Initialize the item block: */
             it->slabs_clsid = 0;
         } else if ((it = slabs_alloc(ntotal, id)) == NULL) {
-        	//ÉêÇëÄÚ´æÊ§°Ü  
-            //´Ë¿Ì£¬¹ıÆÚÊ§Ğ§µÄitemÃ»ÓĞÕÒµ½£¬ÉêÇëÄÚ´æÓÖÊ§°Ü
-            //Ê¹ÓÃLRUÌÔÌ­Ò»¸öitem(¼´Ê¹Õâ¸öitem²¢Ã»ÓĞ¹ıÆÚÊ§Ğ§)  
+        	//ç”³è¯·å†…å­˜å¤±è´¥  
+            //æ­¤åˆ»ï¼Œè¿‡æœŸå¤±æ•ˆçš„itemæ²¡æœ‰æ‰¾åˆ°ï¼Œç”³è¯·å†…å­˜åˆå¤±è´¥
+            //ä½¿ç”¨LRUæ·˜æ±°ä¸€ä¸ªitem(å³ä½¿è¿™ä¸ªitemå¹¶æ²¡æœ‰è¿‡æœŸå¤±æ•ˆ)  
             tried_alloc = 1;
-            if (settings.evict_to_free == 0) {//ÉèÖÃÁË²»½øĞĞLRUÌÔÌ­item 
+            if (settings.evict_to_free == 0) {//è®¾ç½®äº†ä¸è¿›è¡ŒLRUæ·˜æ±°item 
                 itemstats[id].outofmemory++;
             } else {
-                itemstats[id].evicted++;//Ôö¼Ó±»ÌßµÄitemÊı  
+                itemstats[id].evicted++;//å¢åŠ è¢«è¸¢çš„itemæ•°  
                 itemstats[id].evicted_time = current_time - search->time;
-				//¼´Ê¹Ò»¸öitemµÄexptime³ÉÔ±ÉèÖÃÎªÓÀ²»³¬Ê±(0)£¬»¹ÊÇ»á±»ÌßµÄ  
+				//å³ä½¿ä¸€ä¸ªitemçš„exptimeæˆå‘˜è®¾ç½®ä¸ºæ°¸ä¸è¶…æ—¶(0)ï¼Œè¿˜æ˜¯ä¼šè¢«è¸¢çš„  
                 if (search->exptime != 0)
                     itemstats[id].evicted_nonzero++;
                 if ((search->it_flags & ITEM_FETCHED) == 0) {
@@ -207,8 +207,8 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
                  * would be an eviction. Then kick off the slab mover before the
                  * eviction happens.
                  */
-                //Ò»µ©·¢ÏÖÓĞitem±»Ìß£¬ÄÇÃ´¾ÍÆô¶¯ÄÚ´æÒ³ÖØ·ÖÅä²Ù×÷  
-                //Ã¿´Î·¢ÏÖ¾Í½øĞĞ´Ë²Ù×÷¹ıÓÚÆµ·±£¬²»ÍÆ¼ö 
+                //ä¸€æ—¦å‘ç°æœ‰itemè¢«è¸¢ï¼Œé‚£ä¹ˆå°±å¯åŠ¨å†…å­˜é¡µé‡åˆ†é…æ“ä½œ  
+                //æ¯æ¬¡å‘ç°å°±è¿›è¡Œæ­¤æ“ä½œè¿‡äºé¢‘ç¹ï¼Œä¸æ¨è 
                 if (settings.slab_automove == 2)
                     slabs_reassign(-1, id);
             }
@@ -217,7 +217,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
         refcount_decr(&search->refcount); 
         /* If hash values were equal, we don't grab a second lock */
         if (hold_lock)
-            item_trylock_unlock(hold_lock); // ÊÍ·Åitem_trylock(hv)
+            item_trylock_unlock(hold_lock); // é‡Šæ”¾item_trylock(hv)
         break;
     }
 
@@ -236,7 +236,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
     /* Item initialization can happen outside of the lock; the item's already
      * been removed from the slab LRU.
      */
-    //¶Ô·ÖÅäµÄitem(´Óslab»ñÈ¡»ñÈ¡ÌÔÌ­lru»ñÈ¡)½øĞĞ³õÊ¼»¯
+    //å¯¹åˆ†é…çš„item(ä»slabè·å–è·å–æ·˜æ±°lruè·å–)è¿›è¡Œåˆå§‹åŒ–
     it->refcount = 1;     /* the caller will have a reference */
     mutex_unlock(&cache_lock);
     it->next = it->prev = it->h_next = 0;
@@ -285,7 +285,7 @@ bool item_size_ok(const size_t nkey, const int flags, const int nbytes) {
     return slabs_clsid(ntotal) != 0;
 }
 
-// Á´½Óµ½lru¶ÓÁĞÊ×²¿
+// é“¾æ¥åˆ°lrué˜Ÿåˆ—é¦–éƒ¨
 static void item_link_q(item *it) { /* item is the new head */
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -295,31 +295,31 @@ static void item_link_q(item *it) { /* item is the new head */
     tail = &tails[it->slabs_clsid];
     assert(it != *head);
     assert((*head && *tail) || (*head == 0 && *tail == 0));
-	// Á´±íÍ·²å·¨
+	// é“¾è¡¨å¤´æ’æ³•
 	it->prev = 0;
     it->next = *head;
     if (it->next) it->next->prev = it;
     *head = it;
-	// ³õÊ¼Á´±íÎª¿Õ£¬¸üĞÂÁ´±íÎ²Ö¸Õë
+	// åˆå§‹é“¾è¡¨ä¸ºç©ºï¼Œæ›´æ–°é“¾è¡¨å°¾æŒ‡é’ˆ
     if (*tail == 0) *tail = it;
-	// ¸üĞÂ¼ÆÊı
+	// æ›´æ–°è®¡æ•°
     sizes[it->slabs_clsid]++;
     return;
 }
 
-// ´ÓLRU¶ÓÁĞµÄheadsºÍtailsÁ´±íÖĞÉ¾³ı
+// ä»LRUé˜Ÿåˆ—çš„headså’Œtailsé“¾è¡¨ä¸­åˆ é™¤
 static void item_unlink_q(item *it) {
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
     head = &heads[it->slabs_clsid];
     tail = &tails[it->slabs_clsid];
 
-	// É¾³ı½ÚµãÊÇÁ´±íÍ·£¬¸üĞÂhead
+	// åˆ é™¤èŠ‚ç‚¹æ˜¯é“¾è¡¨å¤´ï¼Œæ›´æ–°head
     if (*head == it) {
         assert(it->prev == 0);
         *head = it->next;
     }
-	// É¾³ı½ÚµãÊÇÁ´±íÎ²£¬¸üĞÂtail
+	// åˆ é™¤èŠ‚ç‚¹æ˜¯é“¾è¡¨å°¾ï¼Œæ›´æ–°tail
     if (*tail == it) {
         assert(it->next == 0);
         *tail = it->prev;
@@ -327,10 +327,10 @@ static void item_unlink_q(item *it) {
     assert(it->next != it);
     assert(it->prev != it);
 
-	// Á´±í½ÚµãÉ¾³ı
+	// é“¾è¡¨èŠ‚ç‚¹åˆ é™¤
     if (it->next) it->next->prev = it->prev;
     if (it->prev) it->prev->next = it->next;
-	// ¸üĞÂ¼ÆÊı
+	// æ›´æ–°è®¡æ•°
     sizes[it->slabs_clsid]--;
     return;
 }
@@ -350,9 +350,9 @@ int do_item_link(item *it, const uint32_t hv) {
 
     /* Allocate a new CAS ID on link. */
     ITEM_set_cas(it, (settings.use_cas) ? get_cas_id() : 0);
-	// ²åÈë¹şÏ£±í
+	// æ’å…¥å“ˆå¸Œè¡¨
     assoc_insert(it, hv);
-	// ²åÈëlru
+	// æ’å…¥lru
     item_link_q(it);
     refcount_incr(&it->refcount);
     mutex_unlock(&cache_lock);
@@ -360,7 +360,7 @@ int do_item_link(item *it, const uint32_t hv) {
     return 1;
 }
 
-// ´Ó¹şÏ£±íºÍlru¶ÓÁĞÖĞÒÆ³ıitem
+// ä»å“ˆå¸Œè¡¨å’Œlrué˜Ÿåˆ—ä¸­ç§»é™¤item
 void do_item_unlink(item *it, const uint32_t hv) {
     MEMCACHED_ITEM_UNLINK(ITEM_key(it), it->nkey, it->nbytes);
     mutex_lock(&cache_lock);
@@ -370,9 +370,9 @@ void do_item_unlink(item *it, const uint32_t hv) {
         stats.curr_bytes -= ITEM_ntotal(it);
         stats.curr_items -= 1;
         STATS_UNLOCK();
-		// ´Ó¹şÏ£±íÒÆ³ı
+		// ä»å“ˆå¸Œè¡¨ç§»é™¤
         assoc_delete(ITEM_key(it), it->nkey, hv);
-		// ´Ólru¶ÓÁĞÒÆ³ı
+		// ä»lrué˜Ÿåˆ—ç§»é™¤
         item_unlink_q(it);
         do_item_remove(it);
     }
@@ -380,7 +380,7 @@ void do_item_unlink(item *it, const uint32_t hv) {
 }
 
 /* FIXME: Is it necessary to keep this copy/pasted code? */
-//´Ó¹şÏ£±íºÍLRU¶ÓÁĞÖĞÉ¾³ıÕâ¸öitem
+//ä»å“ˆå¸Œè¡¨å’ŒLRUé˜Ÿåˆ—ä¸­åˆ é™¤è¿™ä¸ªitem
 void do_item_unlink_nolock(item *it, const uint32_t hv) {
     MEMCACHED_ITEM_UNLINK(ITEM_key(it), it->nkey, it->nbytes);
     if ((it->it_flags & ITEM_LINKED) != 0) {
@@ -395,7 +395,7 @@ void do_item_unlink_nolock(item *it, const uint32_t hv) {
     }
 }
 
-// ¼õÉÙÒıÓÃ¼ÆÊı,Èç¹ûÒıÓÃ¼ÆÊıµÈÓÚ0£¬½«item¶ÔÓ¦µÄÄÚ´æ¹é»¹µ½slab
+// å‡å°‘å¼•ç”¨è®¡æ•°,å¦‚æœå¼•ç”¨è®¡æ•°ç­‰äº0ï¼Œå°†itemå¯¹åº”çš„å†…å­˜å½’è¿˜åˆ°slab
 void do_item_remove(item *it) {
     MEMCACHED_ITEM_REMOVE(ITEM_key(it), it->nkey, it->nbytes);
     assert((it->it_flags & ITEM_SLABBED) == 0);
@@ -406,15 +406,15 @@ void do_item_remove(item *it) {
     }
 }
 
-// ¸üĞÂitemÊ±¼ä£¬°ÑÔ­À´µÄitem´Ólru¶ÓÁĞÉ¾³ı£¬È»ºó
-// ²åÈëµ½Ê×²¿£¬±£Ö¤lru¶ÓÁĞ°´ÕÕ×î½ü×îÉÙÊ¹ÓÃÔ­Ôò
-// ÅÅĞò
+// æ›´æ–°itemæ—¶é—´ï¼ŒæŠŠåŸæ¥çš„itemä»lrué˜Ÿåˆ—åˆ é™¤ï¼Œç„¶å
+// æ’å…¥åˆ°é¦–éƒ¨ï¼Œä¿è¯lrué˜Ÿåˆ—æŒ‰ç…§æœ€è¿‘æœ€å°‘ä½¿ç”¨åŸåˆ™
+// æ’åº
 void do_item_update(item *it) {
     MEMCACHED_ITEM_UPDATE(ITEM_key(it), it->nkey, it->nbytes);
-	//ÏÂÃæµÄ´úÂë¿ÉÒÔ¿´µ½update²Ù×÷ÊÇºÄÊ±µÄ¡£Èç¹ûÕâ¸öitemÆµ·±±»·ÃÎÊ£¬  
-    //ÄÇÃ´»áµ¼ÖÂ¹ı¶àµÄupdate£¬¹ı¶àµÄÒ»ÏµÁĞ·ÑÊ±²Ù×÷¡£´ËÊ±¸üĞÂ¼ä¸ô¾ÍÓ¦ÔË¶øÉú  
-    //ÁË¡£Èç¹ûÉÏÒ»´ÎµÄ·ÃÎÊÊ±¼ä(Ò²¿ÉÒÔËµÊÇupdateÊ±¼ä)¾àÀëÏÖÔÚ(current_time)  
-    //»¹ÔÚ¸üĞÂ¼ä¸ôÄÚµÄ£¬¾Í²»¸üĞÂ¡£³¬³öÁË²Å¸üĞÂ¡£
+	//ä¸‹é¢çš„ä»£ç å¯ä»¥çœ‹åˆ°updateæ“ä½œæ˜¯è€—æ—¶çš„ã€‚å¦‚æœè¿™ä¸ªitemé¢‘ç¹è¢«è®¿é—®ï¼Œ  
+    //é‚£ä¹ˆä¼šå¯¼è‡´è¿‡å¤šçš„updateï¼Œè¿‡å¤šçš„ä¸€ç³»åˆ—è´¹æ—¶æ“ä½œã€‚æ­¤æ—¶æ›´æ–°é—´éš”å°±åº”è¿è€Œç”Ÿ  
+    //äº†ã€‚å¦‚æœä¸Šä¸€æ¬¡çš„è®¿é—®æ—¶é—´(ä¹Ÿå¯ä»¥è¯´æ˜¯updateæ—¶é—´)è·ç¦»ç°åœ¨(current_time)  
+    //è¿˜åœ¨æ›´æ–°é—´éš”å†…çš„ï¼Œå°±ä¸æ›´æ–°ã€‚è¶…å‡ºäº†æ‰æ›´æ–°ã€‚
     if (it->time < current_time - ITEM_UPDATE_INTERVAL) {
         assert((it->it_flags & ITEM_SLABBED) == 0);
 
@@ -428,7 +428,7 @@ void do_item_update(item *it) {
     }
 }
 
-// ÓÃnew_it Ìæ»»it
+// ç”¨new_it æ›¿æ¢it
 int do_item_replace(item *it, item *new_it, const uint32_t hv) {
     MEMCACHED_ITEM_REPLACE(ITEM_key(it), it->nkey, it->nbytes,
                            ITEM_key(new_it), new_it->nkey, new_it->nbytes);
@@ -439,7 +439,7 @@ int do_item_replace(item *it, item *new_it, const uint32_t hv) {
 }
 
 /*@null@*/
-// ÏÔÊ¾Ä³¸öslabµÄitemÇé¿ö
+// æ˜¾ç¤ºæŸä¸ªslabçš„itemæƒ…å†µ
 char *do_item_cachedump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
     unsigned int memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
     char *buffer;
@@ -591,7 +591,7 @@ void do_item_stats_sizes(ADD_STAT add_stats, void *c) {
 }
 
 /** wrapper around assoc_find which does the lazy expiration logic */
-// ·µ»Øitem £¬²¢½«itemµÄÒıÓÃ¼ÆÊı+1
+// è¿”å›item ï¼Œå¹¶å°†itemçš„å¼•ç”¨è®¡æ•°+1
 item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     //mutex_lock(&cache_lock);
     item *it = assoc_find(key, nkey, hv);
@@ -602,7 +602,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
          * of item_lock, cache_lock, slabs_lock. */
         if (slab_rebalance_signal &&
             ((void *)it >= slab_rebal.slab_start && (void *)it < slab_rebal.slab_end)) {
-            //item´¦ÔÚÕıÔÚ±»ÒÆ¶¯µÄÄÚ´æÒ³µ±ÖĞ£¬²Î¿´slab_rebalance_start
+            //itemå¤„åœ¨æ­£åœ¨è¢«ç§»åŠ¨çš„å†…å­˜é¡µå½“ä¸­ï¼Œå‚çœ‹slab_rebalance_start
             do_item_unlink_nolock(it, hv);
             do_item_remove(it);
             it = NULL;
@@ -625,23 +625,23 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     }
 
     if (it != NULL) {
-		// flush_all¹ıÆÚ
+		// flush_allè¿‡æœŸ
         if (settings.oldest_live != 0 && settings.oldest_live <= current_time &&
             it->time <= settings.oldest_live) {
-        //settings.oldest_live³õÊ¼»¯ÖµÎª0
-		//¼ì²âÓÃ»§ÊÇ·ñÊ¹ÓÃ¹ıflush_allÃüÁî£¬É¾³ıËùÓĞitem¡£
-		//it->time <= settings.oldest_live¾ÍËµÃ÷ÓÃ»§ÔÚÊ¹ÓÃflush_allÃüÁîµÄÊ±ºò
-		//¾ÍÒÑ¾­´æÔÚ¸ÃitemÁË¡£ÄÇÃ´¸ÃitemÊÇÒªÉ¾³ıµÄ¡£
-		//flush_allÃüÁî¿ÉÒÔÓĞ²ÎÊı£¬ÓÃÀ´Éè¶¨ÔÚÎ´À´µÄÄ³¸öÊ±¿Ì°ÑËùÓĞµÄitem¶¼ÉèÖÃ
-		//Îª¹ıÆÚÊ§Ğ§£¬´ËÊ±settings.oldest_liveÊÇÒ»¸ö±Èworker½ÓÊÕµ½flush_all
-		//ÃüÁîµÄÄÇÒ»¿Ì´óµÄÊ±¼ä,ËùÒÔÒªÅĞ¶Ïsettings.oldest_live <= current_time
+        //settings.oldest_liveåˆå§‹åŒ–å€¼ä¸º0
+		//æ£€æµ‹ç”¨æˆ·æ˜¯å¦ä½¿ç”¨è¿‡flush_allå‘½ä»¤ï¼Œåˆ é™¤æ‰€æœ‰itemã€‚
+		//it->time <= settings.oldest_liveå°±è¯´æ˜ç”¨æˆ·åœ¨ä½¿ç”¨flush_allå‘½ä»¤çš„æ—¶å€™
+		//å°±å·²ç»å­˜åœ¨è¯¥itemäº†ã€‚é‚£ä¹ˆè¯¥itemæ˜¯è¦åˆ é™¤çš„ã€‚
+		//flush_allå‘½ä»¤å¯ä»¥æœ‰å‚æ•°ï¼Œç”¨æ¥è®¾å®šåœ¨æœªæ¥çš„æŸä¸ªæ—¶åˆ»æŠŠæ‰€æœ‰çš„iteméƒ½è®¾ç½®
+		//ä¸ºè¿‡æœŸå¤±æ•ˆï¼Œæ­¤æ—¶settings.oldest_liveæ˜¯ä¸€ä¸ªæ¯”workeræ¥æ”¶åˆ°flush_all
+		//å‘½ä»¤çš„é‚£ä¸€åˆ»å¤§çš„æ—¶é—´,æ‰€ä»¥è¦åˆ¤æ–­settings.oldest_live <= current_time
             do_item_unlink(it, hv);
             do_item_remove(it);
             it = NULL;
             if (was_found) {
                 fprintf(stderr, " -nuked by flush");
             }
-        } else if (it->exptime != 0 && it->exptime <= current_time) { // item±¾Éí³¬Ê±¹ıÆÚ
+        } else if (it->exptime != 0 && it->exptime <= current_time) { // itemæœ¬èº«è¶…æ—¶è¿‡æœŸ
             do_item_unlink(it, hv);
             do_item_remove(it);
             it = NULL;
@@ -660,7 +660,7 @@ item *do_item_get(const char *key, const size_t nkey, const uint32_t hv) {
     return it;
 }
 
-// ¸üĞÂitemµÄ³¬Ê±Ê±¼ä
+// æ›´æ–°itemçš„è¶…æ—¶æ—¶é—´
 item *do_item_touch(const char *key, size_t nkey, uint32_t exptime,
                     const uint32_t hv) {
     item *it = do_item_get(key, nkey, hv);
@@ -671,16 +671,16 @@ item *do_item_touch(const char *key, size_t nkey, uint32_t exptime,
 }
 
 /* expires items that are more recent than the oldest_live setting. */
-//iter->time == 0µÄÊÇlruÅÀ³æitem£¬Ö±½ÓºöÂÔ
-//Ò»°ãÇé¿öÏÂiter->timeÊÇĞ¡ÓÚsettings.oldest_liveµÄ¡£µ«ÔÚÕâÖÖÇé¿öÏÂ
-//¾ÍÓĞ¿ÉÄÜ³öÏÖiter->time >= settings.oldest_live :	worker1½ÓÊÕµ½
-//flush_allÃüÁî£¬²¢¸øsettings.oldest_live¸³ÖµÎªcurrent_time-1¡£
-//worker1Ïß³Ì»¹Ã»À´µÃ¼°µ÷ÓÃitem_flush_expiredº¯Êı£¬¾Í±»worker2
-//ÇÀÕ¼ÁËcpu£¬È»ºóworker2Íùlru¶ÓÁĞ²åÈëÁËÒ»¸öitem¡£Õâ¸öitemµÄtime
-//³ÉÔ±¾Í»áÂú×ãiter->time >= settings.oldest_live£¬Òò´ËÕâÀï¾ÍÊÇÎªÁË´¦Àí
-//ÔÚÖ´ĞĞoldest_live¸³ÖµÊ±£¬ÓĞ¿ÉÄÜÆäËûÏß³ÌÍù¶ÓÁĞÖĞ²åÈë£¬µ¼ÖÂ
-// Ó¦¸Ã²¿·ÖitemÃ»ÓĞ±»ÒÆ³ı
-// ²Î¿¼http://www.bkjia.com/ASPjc/945873.html
+//iter->time == 0çš„æ˜¯lruçˆ¬è™«itemï¼Œç›´æ¥å¿½ç•¥
+//ä¸€èˆ¬æƒ…å†µä¸‹iter->timeæ˜¯å°äºsettings.oldest_liveçš„ã€‚ä½†åœ¨è¿™ç§æƒ…å†µä¸‹
+//å°±æœ‰å¯èƒ½å‡ºç°iter->time >= settings.oldest_live :	worker1æ¥æ”¶åˆ°
+//flush_allå‘½ä»¤ï¼Œå¹¶ç»™settings.oldest_liveèµ‹å€¼ä¸ºcurrent_time-1ã€‚
+//worker1çº¿ç¨‹è¿˜æ²¡æ¥å¾—åŠè°ƒç”¨item_flush_expiredå‡½æ•°ï¼Œå°±è¢«worker2
+//æŠ¢å äº†cpuï¼Œç„¶åworker2å¾€lrué˜Ÿåˆ—æ’å…¥äº†ä¸€ä¸ªitemã€‚è¿™ä¸ªitemçš„time
+//æˆå‘˜å°±ä¼šæ»¡è¶³iter->time >= settings.oldest_liveï¼Œå› æ­¤è¿™é‡Œå°±æ˜¯ä¸ºäº†å¤„ç†
+//åœ¨æ‰§è¡Œoldest_liveèµ‹å€¼æ—¶ï¼Œæœ‰å¯èƒ½å…¶ä»–çº¿ç¨‹å¾€é˜Ÿåˆ—ä¸­æ’å…¥ï¼Œå¯¼è‡´
+// åº”è¯¥éƒ¨åˆ†itemæ²¡æœ‰è¢«ç§»é™¤
+// å‚è€ƒhttp://www.bkjia.com/ASPjc/945873.html
 void do_item_flush_expired(void) {
     int i;
     item *iter, *next;
@@ -694,7 +694,7 @@ void do_item_flush_expired(void) {
          */
         for (iter = heads[i]; iter != NULL; iter = next) {
             /* iter->time of 0 are magic objects. */
-			// ×¢Òâ±È½ÏÊÇitem->time >= settings.oldest_live£¬²Î¿¼ÉÏÃæ×¢ÊÍ
+			// æ³¨æ„æ¯”è¾ƒæ˜¯item->time >= settings.oldest_liveï¼Œå‚è€ƒä¸Šé¢æ³¨é‡Š
             if (iter->time != 0 && iter->time >= settings.oldest_live) {
                 next = iter->next;
                 if ((iter->it_flags & ITEM_SLABBED) == 0) {
@@ -708,7 +708,7 @@ void do_item_flush_expired(void) {
     }
 }
 
-// ½«lruÅÀ³æ½Úµã²åÈëlru¶ÓÁĞÎ²²¿
+// å°†lruçˆ¬è™«èŠ‚ç‚¹æ’å…¥lrué˜Ÿåˆ—å°¾éƒ¨
 static void crawler_link_q(item *it) { /* item is the new tail */
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -720,7 +720,7 @@ static void crawler_link_q(item *it) { /* item is the new tail */
     assert(*tail != 0);
     assert(it != *tail);
     assert((*head && *tail) || (*head == 0 && *tail == 0));
-	// Á´±íÎ²²å
+	// é“¾è¡¨å°¾æ’
     it->prev = *tail;
     it->next = 0;
     if (it->prev) {
@@ -732,7 +732,7 @@ static void crawler_link_q(item *it) { /* item is the new tail */
     return;
 }
 
-// ½«lruÅÀ³æ´Ólru¶ÓÁĞÖĞÒÆ³ı
+// å°†lruçˆ¬è™«ä»lrué˜Ÿåˆ—ä¸­ç§»é™¤
 static void crawler_unlink_q(item *it) {
     item **head, **tail;
     assert(it->slabs_clsid < LARGEST_ID);
@@ -757,7 +757,7 @@ static void crawler_unlink_q(item *it) {
 
 /* This is too convoluted, but it's a difficult shuffle. Try to rewrite it
  * more clearly. */
- // ½«lruÅÀ³æÍùÇ°ÒÆ¶¯Ò»¸öÎ»ÖÃ£¬·µ»ØÒÆ¶¯ºó£¬lruÅÀ³æµÄºóÒ»¸ö½Úµã
+ // å°†lruçˆ¬è™«å¾€å‰ç§»åŠ¨ä¸€ä¸ªä½ç½®ï¼Œè¿”å›ç§»åŠ¨åï¼Œlruçˆ¬è™«çš„åä¸€ä¸ªèŠ‚ç‚¹
 static item *crawler_crawl_q(item *it) {
     item **head, **tail;
     assert(it->it_flags == 1);
@@ -767,7 +767,7 @@ static item *crawler_crawl_q(item *it) {
     tail = &tails[it->slabs_clsid];
 
     /* We've hit the head, pop off */
-	/* ÒÑ¾­ÔÚÍ·²¿Ö±½ÓÉ¾³ıÍ·*/
+	/* å·²ç»åœ¨å¤´éƒ¨ç›´æ¥åˆ é™¤å¤´*/
     if (it->prev == 0) {
         assert(*head == it);
         if (it->next) {
@@ -781,24 +781,24 @@ static item *crawler_crawl_q(item *it) {
     /* Swing ourselves in front of the next item */
     /* NB: If there is a prev, we can't be the head */
     assert(it->prev != it);
-	// Ç°ÃæÓĞ¸ö½Úµã£¬lruÅÀ³æ¿ÉÒÔÍùÇ°ÒÆ¶¯
+	// å‰é¢æœ‰ä¸ªèŠ‚ç‚¹ï¼Œlruçˆ¬è™«å¯ä»¥å¾€å‰ç§»åŠ¨
     if (it->prev) {
-		// lruÅÀ³æÇ°Ãæ¾ÍÊÇÍ·½Úµã
+		// lruçˆ¬è™«å‰é¢å°±æ˜¯å¤´èŠ‚ç‚¹
         if (*head == it->prev) {
             /* Prev was the head, now we're the head */
-			// Ö±½Ó½«Í·½ÚµãÖ¸ÏòlruÅÀ³æ
+			// ç›´æ¥å°†å¤´èŠ‚ç‚¹æŒ‡å‘lruçˆ¬è™«
             *head = it;
         }
-		// lruÅÀ³æÊÇÎ²½Úµã
+		// lruçˆ¬è™«æ˜¯å°¾èŠ‚ç‚¹
         if (*tail == it) {
             /* We are the tail, now they are the tail */
-			// ÍùÇ°ÒÆ
+			// å¾€å‰ç§»
             *tail = it->prev;
         }
         assert(it->next != it);
-		//lruÅÀ³æºóÃæÓĞÒ»¸ö½Úµã
+		//lruçˆ¬è™«åé¢æœ‰ä¸€ä¸ªèŠ‚ç‚¹
         if (it->next) {
-			// ÏÈÉ¾³ı×Ô¼º
+			// å…ˆåˆ é™¤è‡ªå·±
             assert(it->prev->next == it);
             it->prev->next = it->next;
             it->next->prev = it->prev;
@@ -807,7 +807,7 @@ static item *crawler_crawl_q(item *it) {
             it->prev->next = 0;
         }
         /* prev->prev's next is it->prev */
-		// lruÅÀ³æÍùÇ°Å²¶¯Ò»¸öÎ»ÖÃ
+		// lruçˆ¬è™«å¾€å‰æŒªåŠ¨ä¸€ä¸ªä½ç½®
         it->next = it->prev;
         it->prev = it->next->prev;
         it->next->prev = it;
@@ -827,7 +827,7 @@ static item *crawler_crawl_q(item *it) {
  */
 static void item_crawler_evaluate(item *search, uint32_t hv, int i) {
     rel_time_t oldest_live = settings.oldest_live;
-	// ¼ÙÈçitemÒÑ¾­³¬Ê±
+	// å‡å¦‚itemå·²ç»è¶…æ—¶
     if ((search->exptime != 0 && search->exptime < current_time)
         || (search->time <= oldest_live && oldest_live <= current_time)) {
         itemstats[i].crawler_reclaimed++;
@@ -865,20 +865,20 @@ static void *item_crawler_thread(void *arg) {
     while (crawler_count) {
         item *search = NULL;
         void *hold_lock = NULL;
-		// Ã¿´ÎÑ­»·¶¼½«ËùÓĞslabµÄlruÅÀ³æÏòÇ°ÒÆ¶¯
+		// æ¯æ¬¡å¾ªç¯éƒ½å°†æ‰€æœ‰slabçš„lruçˆ¬è™«å‘å‰ç§»åŠ¨
         for (i = 0; i < LARGEST_ID; i++) {
             if (crawlers[i].it_flags != 1) {
                 continue;
             }
-			// ±éÀúÒ»´Î¼ÓÒ»´ÎËø£¬·ÀÖ¹³¤ÆÚÕ¼ÓÃËøµ¼ÖÂÆäËûÏß³Ì²»ÄÜ
-			// ¼°Ê±ÔËĞĞ
+			// éå†ä¸€æ¬¡åŠ ä¸€æ¬¡é”ï¼Œé˜²æ­¢é•¿æœŸå ç”¨é”å¯¼è‡´å…¶ä»–çº¿ç¨‹ä¸èƒ½
+			// åŠæ—¶è¿è¡Œ
             pthread_mutex_lock(&cache_lock);
             search = crawler_crawl_q((item *)&crawlers[i]);
-			// ÅÀ³æÒÑ¾­ÅÀµ½lru¶ÓÁĞÊ×²¿£¬»òÕß³¬¹ıÅÀĞĞ¾àÀë
-			// ¾Í½«Æä´Ó¶ÓÁĞÖĞÒÆ³ı
+			// çˆ¬è™«å·²ç»çˆ¬åˆ°lrué˜Ÿåˆ—é¦–éƒ¨ï¼Œæˆ–è€…è¶…è¿‡çˆ¬è¡Œè·ç¦»
+			// å°±å°†å…¶ä»é˜Ÿåˆ—ä¸­ç§»é™¤
 			
-            if (search == NULL || // ËµÃ÷ÒÑ¾­ÅÀµ½¶ÓÁĞÊ×²¿
-                (crawlers[i].remaining && --crawlers[i].remaining < 1)) { // ³¬¹ıÅÀĞĞ¾àÀë
+            if (search == NULL || // è¯´æ˜å·²ç»çˆ¬åˆ°é˜Ÿåˆ—é¦–éƒ¨
+                (crawlers[i].remaining && --crawlers[i].remaining < 1)) { // è¶…è¿‡çˆ¬è¡Œè·ç¦»
                 if (settings.verbose > 2)
                     fprintf(stderr, "Nothing left to crawl for %d\n", i);
                 crawlers[i].it_flags = 0;
@@ -907,8 +907,8 @@ static void *item_crawler_thread(void *arg) {
             /* Frees the item or decrements the refcount. */
             /* Interface for this could improve: do the free/decr here
              * instead? */
-            item_crawler_evaluate(search, hv, i); // ¼ì²é½ÚµãÊÇ·ñÊ§Ğ§¹ıÆÚ£¬Èç¹û¹ıÆÚÊ§Ğ§Ôò½«Æä
-            									  // ÊÍ·Å£¬¹é»¹ÄÚ´æ
+            item_crawler_evaluate(search, hv, i); // æ£€æŸ¥èŠ‚ç‚¹æ˜¯å¦å¤±æ•ˆè¿‡æœŸï¼Œå¦‚æœè¿‡æœŸå¤±æ•ˆåˆ™å°†å…¶
+            									  // é‡Šæ”¾ï¼Œå½’è¿˜å†…å­˜
 
             if (hold_lock)
                 item_trylock_unlock(hold_lock);
@@ -920,7 +920,7 @@ static void *item_crawler_thread(void *arg) {
     }
     if (settings.verbose > 2)
         fprintf(stderr, "LRU crawler thread sleeping\n");
-	// ×¢ÒâÔÚlru_crawler_crawlº¯ÊıÖĞÒÑ¾­ÖÃÎªtrue
+	// æ³¨æ„åœ¨lru_crawler_crawlå‡½æ•°ä¸­å·²ç»ç½®ä¸ºtrue
     STATS_LOCK();
     stats.lru_crawler_running = false;
     STATS_UNLOCK();
@@ -934,7 +934,7 @@ static void *item_crawler_thread(void *arg) {
 
 static pthread_t item_crawler_tid;
 
-// Í¨¹ıstart/stop/threadÕâ¼¸¸öº¯Êı¿ÉÒÔÑ§Ï°ÏÂcond/lockÍ¨ÖªÍ£µÈÄ£ĞÍµÄÓÃ·¨
+// é€šè¿‡start/stop/threadè¿™å‡ ä¸ªå‡½æ•°å¯ä»¥å­¦ä¹ ä¸‹cond/locké€šçŸ¥åœç­‰æ¨¡å‹çš„ç”¨æ³•
 int stop_item_crawler_thread(void) {
     int ret;
     pthread_mutex_lock(&lru_crawler_lock);
@@ -949,7 +949,7 @@ int stop_item_crawler_thread(void) {
     return 0;
 }
 
-// ¿ªÆôlruÏß³Ì
+// å¼€å¯lruçº¿ç¨‹
 int start_item_crawler_thread(void) {
     int ret;
 
@@ -970,24 +970,24 @@ int start_item_crawler_thread(void) {
     return 0;
 }
 
-// Í¨ÖªlruÅÀ³æÏß³Ì
+// é€šçŸ¥lruçˆ¬è™«çº¿ç¨‹
 enum crawler_result_type lru_crawler_crawl(char *slabs) {
     char *b = NULL;
     uint32_t sid = 0;
     uint8_t tocrawl[POWER_LARGEST];
-	// Èç¹ûtrylockÊ§°Ü£¬ËµÃ÷lruÏß³ÌÅÀ³æÕıÔÚ±éÀú
+	// å¦‚æœtrylockå¤±è´¥ï¼Œè¯´æ˜lruçº¿ç¨‹çˆ¬è™«æ­£åœ¨éå†
     if (pthread_mutex_trylock(&lru_crawler_lock) != 0) {
         return CRAWLER_RUNNING;
     }
     pthread_mutex_lock(&cache_lock);
 
-	// ËùÓĞlru¶ÓÁĞ²åÈëÅÀ³æ
+	// æ‰€æœ‰lrué˜Ÿåˆ—æ’å…¥çˆ¬è™«
     if (strcmp(slabs, "all") == 0) {
         for (sid = 0; sid < LARGEST_ID; sid++) {
             tocrawl[sid] = 1;
         }
     } else {
-    	// ÓĞÏŞ¸ölruÅÀ³æ£¬Ñ§Ï°strtok_rµÄÓÃ·¨
+    	// æœ‰é™ä¸ªlruçˆ¬è™«ï¼Œå­¦ä¹ strtok_rçš„ç”¨æ³•
         for (char *p = strtok_r(slabs, ",", &b);
              p != NULL;
              p = strtok_r(NULL, ",", &b)) {
@@ -1002,7 +1002,7 @@ enum crawler_result_type lru_crawler_crawl(char *slabs) {
         }
     }
 
-	// ½«lruÅÀ³æ²åÈëlru¶ÓÁĞÖĞ
+	// å°†lruçˆ¬è™«æ’å…¥lrué˜Ÿåˆ—ä¸­
     for (sid = 0; sid < LARGEST_ID; sid++) {
         if (tocrawl[sid] != 0 && tails[sid] != NULL) {
             if (settings.verbose > 2)
@@ -1022,7 +1022,7 @@ enum crawler_result_type lru_crawler_crawl(char *slabs) {
     pthread_mutex_unlock(&cache_lock);
     pthread_cond_signal(&lru_crawler_cond);
     STATS_LOCK();
-    stats.lru_crawler_running = true; // Ç°ÃæÒÑ¾­lru_crawler_lock£¬²»ÓÃµ£ĞÄ
+    stats.lru_crawler_running = true; // å‰é¢å·²ç»lru_crawler_lockï¼Œä¸ç”¨æ‹…å¿ƒ
     STATS_UNLOCK();
     pthread_mutex_unlock(&lru_crawler_lock);
     return CRAWLER_OK;

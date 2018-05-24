@@ -104,7 +104,7 @@
 #define ITEM_data(item) ((char*) &((item)->data) + (item)->nkey + 1 \
          + (item)->nsuffix \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
-// itemÕ¼ÓÃµÄÄÚ´æ´óĞ¡
+// itemå ç”¨çš„å†…å­˜å¤§å°
 #define ITEM_ntotal(item) (sizeof(struct _stritem) + (item)->nkey + 1 \
          + (item)->nsuffix + (item)->nbytes \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
@@ -147,21 +147,21 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
  * Possible states of a connection.
  */
 enum conn_states {
-	// ¼àÌısocketÁ¬½Ó£¬masterÏß³Ì
+	// ç›‘å¬socketè¿æ¥ï¼Œmasterçº¿ç¨‹
     conn_listening,  /**< the socket which listens for connections */
-    // ĞÂÁ¬½Óµ½À´½øĞĞ»º³åÇø³õÊ¼»¯µÈ²Ù×÷£¬È»ºó½øÈëconn_waiting×´Ì¬
+    // æ–°è¿æ¥åˆ°æ¥è¿›è¡Œç¼“å†²åŒºåˆå§‹åŒ–ç­‰æ“ä½œï¼Œç„¶åè¿›å…¥conn_waitingçŠ¶æ€
     conn_new_cmd,    /**< Prepare connection for next command */
-    // ½øÈëlibeventÊÂ¼şÑ­»·£¬Ö±µ½socketÓĞÊı¾İ¿É¶Á
+    // è¿›å…¥libeventäº‹ä»¶å¾ªç¯ï¼Œç›´åˆ°socketæœ‰æ•°æ®å¯è¯»
     conn_waiting,    /**< waiting for a readable socket */
-    // ¿ªÊ¼¶ÁÈ¡socketÊı¾İ
+    // å¼€å§‹è¯»å–socketæ•°æ®
     conn_read,       /**< reading in a command line */
-    // ½âÎö»º³åÇøÊı¾İ
+    // è§£æç¼“å†²åŒºæ•°æ®
     conn_parse_cmd,  /**< try to parse a command from the input buffer */
     conn_write,      /**< writing out a simple response */
     conn_nread,      /**< reading in a fixed number of bytes */
     conn_swallow,    /**< swallowing unnecessary bytes w/o storing */
     conn_closing,    /**< closing this connection */
-    // msg writeµÄÒâË¼
+    // msg writeçš„æ„æ€
     conn_mwrite,     /**< writing out many items sequentially */
     conn_closed,     /**< connection is closed */
     conn_max_state   /**< Max state value (used for assertion) */
@@ -195,8 +195,8 @@ enum network_transport {
 };
 
 enum item_lock_types {
-    ITEM_LOCK_GRANULAR = 0, // ¸Ğ¾õitem µÄhash valueµÃµ½¶ÔÓ¦µÄlock£¬È»ºóÔÙ¼ÏËø
-    ITEM_LOCK_GLOBAL// È«¾ÖÎ¨Ò»lock
+    ITEM_LOCK_GRANULAR = 0, // æ„Ÿè§‰item çš„hash valueå¾—åˆ°å¯¹åº”çš„lockï¼Œç„¶åå†æ·é”
+    ITEM_LOCK_GLOBAL// å…¨å±€å”¯ä¸€lock
 };
 
 #define IS_UDP(x) (x == udp_transport)
@@ -244,7 +244,7 @@ struct thread_stats {
     uint64_t          incr_misses;
     uint64_t          decr_misses;
     uint64_t          cas_misses;
-    uint64_t          bytes_read; // ¸ÃÏß³Ì´Ósocket¶ÁÈ¡µ½µÄÊı¾İÁ¿
+    uint64_t          bytes_read; // è¯¥çº¿ç¨‹ä»socketè¯»å–åˆ°çš„æ•°æ®é‡
     uint64_t          bytes_written;
     uint64_t          flush_cmds;
     uint64_t          conn_yields; /* # of yields for connections (-R option)*/
@@ -264,7 +264,7 @@ struct stats {
     unsigned int  curr_conns;
     unsigned int  total_conns;
     uint64_t      rejected_conns;
-    uint64_t      malloc_fails; // ÄÚ´æ·ÖÅäÊ§°Ü´ÎÊı
+    uint64_t      malloc_fails; // å†…å­˜åˆ†é…å¤±è´¥æ¬¡æ•°
     unsigned int  reserved_fds;
     unsigned int  conn_structs;
     uint64_t      get_cmds;
@@ -302,7 +302,7 @@ struct settings {
     int udpport;
     char *inter;
     int verbose;
-	// µ±itemµÄÊ±¼äĞ¡ÓÚ¸ÃÖµµÄÊ±ºò»á±»É¾³ı£¬ºÍflush_allÃüÁîÏà¹Ø
+	// å½“itemçš„æ—¶é—´å°äºè¯¥å€¼çš„æ—¶å€™ä¼šè¢«åˆ é™¤ï¼Œå’Œflush_allå‘½ä»¤ç›¸å…³
     rel_time_t oldest_live; /* ignore existing items older than this */
     int evict_to_free;
     char *socketpath;   /* path to unix socket if using local socket */
@@ -323,16 +323,16 @@ struct settings {
     bool maxconns_fast;     /* Whether or not to early close connections */
     bool lru_crawler;        /* Whether or not to enable the autocrawler thread */
     bool slab_reassign;     /* Whether or not slab reassignment is allowed */
-	//1¿ªÆôautomove¹¦ÄÜ£¬slab_maintenance_threadÏß³Ì¶¨Ê±¼à²â
-	//2Ã¿´ÎÓĞitem±»ÌŞ³ı£¬¾Íµ÷ÓÃslabs_reassign½øĞĞÄÚ´æÒ³ÖØ·ÖÅä
+	//1å¼€å¯automoveåŠŸèƒ½ï¼Œslab_maintenance_threadçº¿ç¨‹å®šæ—¶ç›‘æµ‹
+	//2æ¯æ¬¡æœ‰itemè¢«å‰”é™¤ï¼Œå°±è°ƒç”¨slabs_reassignè¿›è¡Œå†…å­˜é¡µé‡åˆ†é…
     int slab_automove;     /* Whether or not to automatically move slabs */
     int hashpower_init;     /* Starting hash power level */
     bool shutdown_command; /* allow shutdown command */
-    //ÓÃÓÚĞŞ¸´itemµÄÒıÓÃÊı¡£Èç¹ûÒ»¸öworkerÏß³ÌÒıÓÃÁËÄ³¸öitem£¬»¹Ã»À´µÃ¼°½â³ıÒıÓÃÕâ¸öÏß³Ì¾Í¹ÒÁË  
-    //ÄÇÃ´Õâ¸öitem¾ÍÓÀÔ¶±»Õâ¸öÒÑËÀµÄÏß³ÌËùÒıÓÃ¶ø²»ÄÜÊÍ·Å¡£memcachedÓÃÕâ¸öÖµÀ´¼ì²âÊÇ·ñ³öÏÖÕâÖÖ  
-    //Çé¿ö¡£ÒòÎªÕâÖÖÇé¿öºÜÉÙ·¢Éú£¬ËùÒÔ¸Ã±äÁ¿µÄÄ¬ÈÏÖµÎª0(¼´²»½øĞĞ¼ì²â)¡£  
-    //ÔÚÆô¶¯memcachedÊ±£¬Í¨¹ı-o tail_repair_time xxxÉèÖÃ¡£ÉèÖÃµÄÖµÒª´óÓÚ10(µ¥Î»ÎªÃë)  
-    //TAIL_REPAIR_TIME_DEFAULT µÈÓÚ 0¡£
+    //ç”¨äºä¿®å¤itemçš„å¼•ç”¨æ•°ã€‚å¦‚æœä¸€ä¸ªworkerçº¿ç¨‹å¼•ç”¨äº†æŸä¸ªitemï¼Œè¿˜æ²¡æ¥å¾—åŠè§£é™¤å¼•ç”¨è¿™ä¸ªçº¿ç¨‹å°±æŒ‚äº†  
+    //é‚£ä¹ˆè¿™ä¸ªitemå°±æ°¸è¿œè¢«è¿™ä¸ªå·²æ­»çš„çº¿ç¨‹æ‰€å¼•ç”¨è€Œä¸èƒ½é‡Šæ”¾ã€‚memcachedç”¨è¿™ä¸ªå€¼æ¥æ£€æµ‹æ˜¯å¦å‡ºç°è¿™ç§  
+    //æƒ…å†µã€‚å› ä¸ºè¿™ç§æƒ…å†µå¾ˆå°‘å‘ç”Ÿï¼Œæ‰€ä»¥è¯¥å˜é‡çš„é»˜è®¤å€¼ä¸º0(å³ä¸è¿›è¡Œæ£€æµ‹)ã€‚  
+    //åœ¨å¯åŠ¨memcachedæ—¶ï¼Œé€šè¿‡-o tail_repair_time xxxè®¾ç½®ã€‚è®¾ç½®çš„å€¼è¦å¤§äº10(å•ä½ä¸ºç§’)  
+    //TAIL_REPAIR_TIME_DEFAULT ç­‰äº 0ã€‚
 
     int tail_repair_time;   /* LRU tail refcount leak repair time */
     bool flush_enabled;     /* flush_all enabled */
@@ -345,14 +345,14 @@ extern struct stats stats;
 extern time_t process_started;
 extern struct settings settings;
 
-// ÒÑ¾­²åÈëlru¶ÓÁĞºÍ¹şÏ£±í
+// å·²ç»æ’å…¥lrué˜Ÿåˆ—å’Œå“ˆå¸Œè¡¨
 #define ITEM_LINKED 1
 #define ITEM_CAS 2
 
 /* temp */
 #define ITEM_SLABBED 4
 
-// itemÓĞ±»·ÃÎÊ¹ı£¬ÔÚdo_item_getÖĞ²éÑ¯µ½itemºóflag±»ÉèÖÃ ITEM_FETCHED±êÊ¾
+// itemæœ‰è¢«è®¿é—®è¿‡ï¼Œåœ¨do_item_getä¸­æŸ¥è¯¢åˆ°itemåflagè¢«è®¾ç½® ITEM_FETCHEDæ ‡ç¤º
 #define ITEM_FETCHED 8
 
 /**
@@ -362,20 +362,20 @@ typedef struct _stritem {
     struct _stritem *next;
     struct _stritem *prev;
     struct _stritem *h_next;    /* hash chain next */
-	// ×îºóÒ»´Î»ñÈ¡µÄ·ÃÎÊµÄÊ±¼ä
+	// æœ€åä¸€æ¬¡è·å–çš„è®¿é—®çš„æ—¶é—´
     rel_time_t      time;       /* least recent access */
-	// ³¬Ê±Ê±¼ä
+	// è¶…æ—¶æ—¶é—´
     rel_time_t      exptime;    /* expire time */
-	// Êı¾İ³¤¶È
+	// æ•°æ®é•¿åº¦
     int             nbytes;     /* size of data */
-	// ÒıÓÃ¼ÆÊı
+	// å¼•ç”¨è®¡æ•°
     unsigned short  refcount;
-	// suffixÊı¾İ³¤¶È
+	// suffixæ•°æ®é•¿åº¦
     uint8_t         nsuffix;    /* length of flags-and-length string */
     uint8_t         it_flags;   /* ITEM_* above */
-	// ¸ÃitemËùÊôµÄslab
+	// è¯¥itemæ‰€å±çš„slab
     uint8_t         slabs_clsid;/* which slab class we're in */
-	// hash keyµÄ³¤¶È 
+	// hash keyçš„é•¿åº¦ 
     uint8_t         nkey;       /* key length, w/terminating null and padding */
     /* this odd type prevents type-punning issues when we do
      * the little shuffle to save space when not using CAS. */
@@ -387,12 +387,12 @@ typedef struct _stritem {
     /* then null-terminated key */
     /* then " flags length\r\n" (no terminating null) */
     /* then data with terminating \r\n (no terminating null; it's binary!) */
-	// Êı¾İ¸ñÊ½: key [cas] |suffix | data
+	// æ•°æ®æ ¼å¼: key [cas] |suffix | data
 } item;
 
-// lru¶ÓÁĞÅÀ³æ£¬½á¹¹Ìå×Ö¶ÎºÍitem»ù±¾ÏàÍ¬£¬
-// ºÍitem½Úµã·ÅÖÃÓëlru¶ÓÁĞÖĞËäÈ»ÀàĞÍ²»Í¬£¬
-// µ«ÊÇ½á¹¹ÌåµÄ²¼¾Ö»ù±¾ÏàÍ¬
+// lrué˜Ÿåˆ—çˆ¬è™«ï¼Œç»“æ„ä½“å­—æ®µå’ŒitemåŸºæœ¬ç›¸åŒï¼Œ
+// å’ŒitemèŠ‚ç‚¹æ”¾ç½®ä¸lrué˜Ÿåˆ—ä¸­è™½ç„¶ç±»å‹ä¸åŒï¼Œ
+// ä½†æ˜¯ç»“æ„ä½“çš„å¸ƒå±€åŸºæœ¬ç›¸åŒ
 typedef struct {
     struct _stritem *next;
     struct _stritem *prev;
@@ -405,20 +405,20 @@ typedef struct {
     uint8_t         it_flags;   /* ITEM_* above */
     uint8_t         slabs_clsid;/* which slab class we're in */
     uint8_t         nkey;       /* key length, w/terminating null and padding */
-	// ÅÀ³æÅÀĞĞµÄ²½Êı
+	// çˆ¬è™«çˆ¬è¡Œçš„æ­¥æ•°
     uint32_t        remaining;  /* Max keys to crawl per slab per invocation */
 } crawler;
 
 typedef struct {
     pthread_t thread_id;        /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
-	// Óënotify_receive_fd °ó¶¨£¬»Øµ÷Óëthread_libevent_process¹ØÁª
+	// ä¸notify_receive_fd ç»‘å®šï¼Œå›è°ƒä¸thread_libevent_processå…³è”
     struct event notify_event;  /* listen event for notify pipe */
-	// ÓĞÁ¬½Óµ½À´£¬masterÍ¨¹ı´Ëfd»½ĞÑworkerÏß³Ì´¦Àí¿Í»§Á¬½Ó
+	// æœ‰è¿æ¥åˆ°æ¥ï¼Œmasteré€šè¿‡æ­¤fdå”¤é†’workerçº¿ç¨‹å¤„ç†å®¢æˆ·è¿æ¥
     int notify_receive_fd;      /* receiving end of notify pipe */
     int notify_send_fd;         /* sending end of notify pipe */
     struct thread_stats stats;  /* Stats generated by this thread */
-	//masterÏß³Ì½ÓÊÕµ½ĞÂÁ¬½ÓÖ®ºó»áÍùÕâÀïÌí¼Ó½Úµã
+	//masterçº¿ç¨‹æ¥æ”¶åˆ°æ–°è¿æ¥ä¹‹åä¼šå¾€è¿™é‡Œæ·»åŠ èŠ‚ç‚¹
     struct conn_queue *new_conn_queue; /* queue of new connections to handle */
     cache_t *suffix_cache;      /* suffix cache */
     uint8_t item_lock_type;     /* use fine-grained or global item lock */
@@ -444,15 +444,15 @@ struct conn{
     short  ev_flags;
     short  which;   /** which events were just triggered */
 
-	/* Ê¹ÓÃ·½·¨¼ûmemcached.c:try_read_network*/
+	/* ä½¿ç”¨æ–¹æ³•è§memcached.c:try_read_network*/
 
-	// ´ÓsocketÖĞ¶ÁÈ¡³öÀ´µÄÊı¾İ
+	// ä»socketä¸­è¯»å–å‡ºæ¥çš„æ•°æ®
     char   *rbuf;   /** buffer to read commands into */
-	// Ö¸ÏòrbufÖĞÎ´½âÎöµÄÊı¾İ
+	// æŒ‡å‘rbufä¸­æœªè§£æçš„æ•°æ®
     char   *rcurr;  /** but if we parsed some already, this is where we stopped */
-	// rbufÖ¸ÏòµÄÄÚ´æ´óĞ¡
+	// rbufæŒ‡å‘çš„å†…å­˜å¤§å°
     int    rsize;   /** total allocated size of rbuf */
-	// Î´½âÎöµÄÊı¾İ³¤¶È£¬¼´rcurrÖ®ºóµÄÊı¾İ
+	// æœªè§£æçš„æ•°æ®é•¿åº¦ï¼Œå³rcurrä¹‹åçš„æ•°æ®
     int    rbytes;  /** how much data, starting from rcur, do we have unparsed */
 
     char   *wbuf;
@@ -485,14 +485,14 @@ struct conn{
     int    iovused;   /* number of elements used in iov[] */
 
     struct msghdr *msglist;
-	// msglistÊı×é´óĞ¡
+	// msglistæ•°ç»„å¤§å°
     int    msgsize;   /* number of elements allocated in msglist[] */
-	// msglistÒÑ¾­Ê¹ÓÃµÄÊı¾İ¸öÊı
+	// msglistå·²ç»ä½¿ç”¨çš„æ•°æ®ä¸ªæ•°
     int    msgused;   /* number of elements used in msglist[] */
     int    msgcurr;   /* element in msglist[] being transmitted now */
     int    msgbytes;  /* number of bytes in current msg */
 
-	// ·µ»Ø¸ø¿Í»§¶ËµÄitem
+	// è¿”å›ç»™å®¢æˆ·ç«¯çš„item
     item   **ilist;   /* list of items to write out */
     int    isize;
     item   **icurr;
@@ -541,12 +541,12 @@ extern volatile rel_time_t current_time;
 /* TODO: Move to slabs.h? */
 extern volatile int slab_rebalance_signal;
 
-// ½«Ô´slabµÄÄÚ´æÒ³ÒÆ¶¯µ½Ä¿±êslab
+// å°†æºslabçš„å†…å­˜é¡µç§»åŠ¨åˆ°ç›®æ ‡slab
 struct slab_rebalance {
-    void *slab_start; // Ä³Ò»ÄÚ´æÒ³ÆğÊ¼µØÖ·
-    void *slab_end;	  // Ä³Ò»ÄÚ´æÒ³½áÊøµØÖ·	
-    void *slab_pos;   // ÄÚ´æÒ²ÖĞµ±Ç°Î»ÖÃ
-    //Í¨¹ıslab_automove_decisionµÃµ½Á½¸öÎ»ÖÃ
+    void *slab_start; // æŸä¸€å†…å­˜é¡µèµ·å§‹åœ°å€
+    void *slab_end;	  // æŸä¸€å†…å­˜é¡µç»“æŸåœ°å€	
+    void *slab_pos;   // å†…å­˜ä¹Ÿä¸­å½“å‰ä½ç½®
+    //é€šè¿‡slab_automove_decisionå¾—åˆ°ä¸¤ä¸ªä½ç½®
     int s_clsid; // src slab
     int d_clsid; // dst slab
     int busy_items;

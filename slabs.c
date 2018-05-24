@@ -24,41 +24,41 @@
 /* powers-of-N allocation structures */
 
 typedef struct {
-	//Ò»¸öitemµÄ´óĞ¡
+	//ä¸€ä¸ªitemçš„å¤§å°
     unsigned int size;      /* sizes of items  */
-	//Ò»¸öpageÓĞ¶àÉÙ¸öitem£¬²¿·ÖÎÄµµÒÔ¼°ÎÄÕÂ½«itemÃèÊöÎªchunk£¬ÕâÀïÎÒ´ÓÔ´Âë
-	// ½Ç¶ÈÊ¹ÓÃitemÀ´±íÊ¾Ò»¸öslabÖĞµÄ¿ÕÏĞµÄĞ¡ÄÚ´æ¿é
+	//ä¸€ä¸ªpageæœ‰å¤šå°‘ä¸ªitemï¼Œéƒ¨åˆ†æ–‡æ¡£ä»¥åŠæ–‡ç« å°†itemæè¿°ä¸ºchunkï¼Œè¿™é‡Œæˆ‘ä»æºç 
+	// è§’åº¦ä½¿ç”¨itemæ¥è¡¨ç¤ºä¸€ä¸ªslabä¸­çš„ç©ºé—²çš„å°å†…å­˜å—
     unsigned int perslab;   /* how many items per slab  */
-	// ¿ÕÏĞµÄitemÁ´±í,ËùÓĞslab_listÖĞµÄitem³õÊ¼»¯µÄÊ±ºò¶¼»á´®Áªµ½ÕâÀï
+	// ç©ºé—²çš„itemé“¾è¡¨,æ‰€æœ‰slab_listä¸­çš„itemåˆå§‹åŒ–çš„æ—¶å€™éƒ½ä¼šä¸²è”åˆ°è¿™é‡Œ
     void *slots;           /* list of item ptrs */
-	// ¿ÕÏĞµÄitemÁ´±í½Úµã¸öÊı
+	// ç©ºé—²çš„itemé“¾è¡¨èŠ‚ç‚¹ä¸ªæ•°
     unsigned int sl_curr;   /* total free items in list */
 
-	// <slab_list>ÔªËØ¸öÊıslabs <= list_size
+	// <slab_list>å…ƒç´ ä¸ªæ•°slabs <= list_size
     unsigned int slabs;     /* how many slabs were allocated for this class */
-	// <slab_list>Á´±íÊı×é,±£´æÃ¿¸öpage
+	// <slab_list>é“¾è¡¨æ•°ç»„,ä¿å­˜æ¯ä¸ªpage
     void **slab_list;       /* array of slab pointers */
-	// <slab_list>µÄÊı×é´óĞ¡slabs <= list_size
+	// <slab_list>çš„æ•°ç»„å¤§å°slabs <= list_size
     unsigned int list_size; /* size of prev array  */
 
     unsigned int killing;  /* index+1 of dying slab, or zero if none */
-	/* ¼ÇÂ¼·ÖÅä³öÈ¥µÄÄÚ´æ´óĞ¡*/
+	/* è®°å½•åˆ†é…å‡ºå»çš„å†…å­˜å¤§å°*/
     size_t requested; /* The number of requested bytes */
 } slabclass_t;
 
-static slabclass_t slabclass[MAX_NUMBER_OF_SLAB_CLASSES]; //Ò»¸öslabÄ¬ÈÏÊÇ1M
+static slabclass_t slabclass[MAX_NUMBER_OF_SLAB_CLASSES]; //ä¸€ä¸ªslabé»˜è®¤æ˜¯1M
 static size_t mem_limit = 0;
 static size_t mem_malloced = 0;
 static int power_largest;
 
-// Èç¹ûpreallocatedÎªtrue£¬¼´Ô¤ÏÈ·ÇÅäºÃÕû¿éÄÚ´æ£¬ÒÔºóÈ¡ÄÚ´æ¶¼´Ómem_baseÖ¸Ïò
-// µÄÄÚ´æ¿éÖĞÈ¡£¬¼ÙÈçpreallocatedÎªfalse£¬ÔòÊ¹ÓÃmalloc½øĞĞ¶¯Ì¬·ÖÅäÄÚ´æ£¬Ê¹ÓÃ
-// mem_malloced¼ÇÂ¼ÒÑ¾­·ÖÅäµÄÄÚ´æ´óĞ¡£¬ÒÔÃâ³¬³ömem_limit£¬¾ßÌåÇë²Î¿´º¯Êı
+// å¦‚æœpreallocatedä¸ºtrueï¼Œå³é¢„å…ˆéé…å¥½æ•´å—å†…å­˜ï¼Œä»¥åå–å†…å­˜éƒ½ä»mem_baseæŒ‡å‘
+// çš„å†…å­˜å—ä¸­å–ï¼Œå‡å¦‚preallocatedä¸ºfalseï¼Œåˆ™ä½¿ç”¨mallocè¿›è¡ŒåŠ¨æ€åˆ†é…å†…å­˜ï¼Œä½¿ç”¨
+// mem_mallocedè®°å½•å·²ç»åˆ†é…çš„å†…å­˜å¤§å°ï¼Œä»¥å…è¶…å‡ºmem_limitï¼Œå…·ä½“è¯·å‚çœ‹å‡½æ•°
 // memory_allocate
 
-// mem_base:ÄÚ´æ¿éµØÖ·
-// mem_current:¿ÉÓÃÄÚ´æÆğÊ¼µØÖ·, mem_current >= mem_base
-// mem_avail:¿ÉÓÃ³¤¶È
+// mem_base:å†…å­˜å—åœ°å€
+// mem_current:å¯ç”¨å†…å­˜èµ·å§‹åœ°å€, mem_current >= mem_base
+// mem_avail:å¯ç”¨é•¿åº¦
 static void *mem_base = NULL; 
 static void *mem_current = NULL;
 static size_t mem_avail = 0;
@@ -91,7 +91,7 @@ static void slabs_preallocate (const unsigned int maxslabs);
  * Given object size, return id to use when allocating/freeing memory for object
  * 0 means error: can't store such a large object
  */
-// ¸ù¾İ³¤¶ÈµÃµ½slabs µÄid
+// æ ¹æ®é•¿åº¦å¾—åˆ°slabs çš„id
 unsigned int slabs_clsid(const size_t size) {
     int res = POWER_SMALLEST;
 
@@ -107,15 +107,15 @@ unsigned int slabs_clsid(const size_t size) {
  * Determines the chunk sizes and initializes the slab class descriptors
  * accordingly.
  */
-void slabs_init(const size_t limit, /* ×î´óÄÚ´æÏŞÖÆ*/
-				  const double factor /* Ã¿¸öslabÖĞitemµÄÔö³¤Òò×Ó*/,
-				  const bool prealloc /* ÊÇ·ñÔ¤ÏÈ·ÖÅäÄÚ´æ*/) {
+void slabs_init(const size_t limit, /* æœ€å¤§å†…å­˜é™åˆ¶*/
+				  const double factor /* æ¯ä¸ªslabä¸­itemçš„å¢é•¿å› å­*/,
+				  const bool prealloc /* æ˜¯å¦é¢„å…ˆåˆ†é…å†…å­˜*/) {
     int i = POWER_SMALLEST - 1;
     unsigned int size = sizeof(item) + settings.chunk_size;
 
     mem_limit = limit;
 
-	// Ô¤ÏÈ·ÇÅäÄÚ´æ
+	// é¢„å…ˆéé…å†…å­˜
     if (prealloc) {
         /* Allocate everything in a big chunk with malloc */
         mem_base = malloc(mem_limit);
@@ -133,10 +133,10 @@ void slabs_init(const size_t limit, /* ×î´óÄÚ´æÏŞÖÆ*/
     while (++i < POWER_LARGEST && size <= settings.item_size_max / factor) {
         /* Make sure items are always n-byte aligned */
         if (size % CHUNK_ALIGN_BYTES)
-            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // ÏòÉÏÈ¡Õû¶ÔÆëCHUNK_ALIGN_BYTES¸ö×Ö½Ú
+            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // å‘ä¸Šå–æ•´å¯¹é½CHUNK_ALIGN_BYTESä¸ªå­—èŠ‚
         slabclass[i].size = size;
-        slabclass[i].perslab = settings.item_size_max / slabclass[i].size; /* ¼ÆËãÒ»¸öslabµÄitemÊıÄ¿*/
-        size *= factor; /* ³ËÒÔÔö³¤Òò×Ó£¬¼ÆËãÏÂÒ»¸öslabµÄitem´óĞ¡*/
+        slabclass[i].perslab = settings.item_size_max / slabclass[i].size; /* è®¡ç®—ä¸€ä¸ªslabçš„itemæ•°ç›®*/
+        size *= factor; /* ä¹˜ä»¥å¢é•¿å› å­ï¼Œè®¡ç®—ä¸‹ä¸€ä¸ªslabçš„itemå¤§å°*/
         if (settings.verbose > 1) {
             fprintf(stderr, "slab class %3d: chunk size %9u perslab %7u\n",
                     i, slabclass[i].size, slabclass[i].perslab);
@@ -174,7 +174,7 @@ static void slabs_preallocate (const unsigned int maxslabs) {
        messages.  this is the most common question on the mailing
        list.  if you really don't want this, you can rebuild without
        these three lines.  */
-	// Ô¤ÏÈ·ÖÅä£¬Ã¿¸öslabÔ¤ÏÈ·ÖÅäÒ»¸öpage
+	// é¢„å…ˆåˆ†é…ï¼Œæ¯ä¸ªslabé¢„å…ˆåˆ†é…ä¸€ä¸ªpage
     for (i = POWER_SMALLEST; i <= POWER_LARGEST; i++) {
         if (++prealloc > maxslabs)
             return;
@@ -188,11 +188,11 @@ static void slabs_preallocate (const unsigned int maxslabs) {
 
 }
 
-/* Èç¹ûslab_list²»×ã£¬ÔòÖ¸ÊıÔö³¤¶ÔÓ¦µÄÊı×é*/
+/* å¦‚æœslab_listä¸è¶³ï¼Œåˆ™æŒ‡æ•°å¢é•¿å¯¹åº”çš„æ•°ç»„*/
 static int grow_slab_list (const unsigned int id) {
     slabclass_t *p = &slabclass[id];
-    if (p->slabs == p->list_size) { // ÒÑ¾­Ê¹ÓÃÍê
-        size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16; // Ö¸ÊıÔö³¤
+    if (p->slabs == p->list_size) { // å·²ç»ä½¿ç”¨å®Œ
+        size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16; // æŒ‡æ•°å¢é•¿
         void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
         if (new_list == 0) return 0;
         p->list_size = new_size;
@@ -201,8 +201,8 @@ static int grow_slab_list (const unsigned int id) {
     return 1;
 }
 
-// ½«ptrÇĞ¸îÎªµÈ´óĞ¡µÄitem chunk£¬´®Áªµ½slots¿ÕÏĞÁ´±í
-// ptrÒªÂú×ã¶ÔÓ¦idµÄslabÄÚ´æÒ³´óĞ¡£¬Ò»°ãÎªp->perslab*p->size
+// å°†ptråˆ‡å‰²ä¸ºç­‰å¤§å°çš„item chunkï¼Œä¸²è”åˆ°slotsç©ºé—²é“¾è¡¨
+// ptrè¦æ»¡è¶³å¯¹åº”idçš„slabå†…å­˜é¡µå¤§å°ï¼Œä¸€èˆ¬ä¸ºp->perslab*p->size
 static void split_slab_page_into_freelist(char *ptr, const unsigned int id) {
     slabclass_t *p = &slabclass[id];
     int x;
@@ -213,20 +213,20 @@ static void split_slab_page_into_freelist(char *ptr, const unsigned int id) {
 }
 
 /*
-* Ìí¼ÓÒ»¸öslab page
-* ·ÖÅäÒ»Ò³ÄÚ´æ,È»ºóÇĞ¸îÎªitem²¢¹Ò½Óµ½¶ÔÓ¦idµÄslab¿ÕÏĞÁ´±íslotsÖ®ÉÏ
+* æ·»åŠ ä¸€ä¸ªslab page
+* åˆ†é…ä¸€é¡µå†…å­˜,ç„¶ååˆ‡å‰²ä¸ºitemå¹¶æŒ‚æ¥åˆ°å¯¹åº”idçš„slabç©ºé—²é“¾è¡¨slotsä¹‹ä¸Š
 */
 static int do_slabs_newslab(const unsigned int id) {
     slabclass_t *p = &slabclass[id];
-	// ×¢ÒâÕâÀïÅĞ¶Ïslab_reassign£¬Èç¹û¿ªÆôrebalance£¬ÄÇÃ´
-	// Ã¿¸öÄÚ´æÒ³´óĞ¡¶¼ÊÇitem_size_max£¬·ñÔòÎª¾«È·µÄ
-	// ÄÚ´æ¼ÆËã£¬ÕâÑù×öµÄºÃ´¦ÊÇ:
-	// ÔÚĞèÒª½«Ò»¸öÄÚ´æÒ³´ÓÄ³Ò»¸öslabclass_tÇ¿ÇÀ¸øÁíÍâ
-	// Ò»¸öslabclass_tÊ±£¬±È½ÏºÃ´¦Àí¡£²»È»µÄ»°£¬slabclass[i]´Óslabclass[j] 
-	// ÇÀµ½µÄÒ»¸öÄÚ´æÒ³¿ÉÒÔÇĞ·ÖÎªn¸öitem£¬¶ø´Óslabclass[k]ÇÀµ½µÄ
-	// Ò»¸öÄÚ´æÒ³È´ÇĞ·ÖÎªm¸öitem£¬¶ø±¾ÉíµÄÒ»¸öÄÚ´æÒ³ÓĞs¸öitem
-	// ÕâÑùµÄ»°ÊÇÏàµ±»ìÂÒµÄ¡£¼ÙÈç±Ï¾¹Í³Ò»ÁËÄÚ´æÒ³´óĞ¡£¬ÄÇ
-	// Ã´ÎŞÂÛ´ÓÄÄÀïÇÀµ½µÄÄÚ´æÒ³¶¼ÊÇÇĞ·Ö³ÉÒ»Ñù¶àµÄitem¸öÊı¡£
+	// æ³¨æ„è¿™é‡Œåˆ¤æ–­slab_reassignï¼Œå¦‚æœå¼€å¯rebalanceï¼Œé‚£ä¹ˆ
+	// æ¯ä¸ªå†…å­˜é¡µå¤§å°éƒ½æ˜¯item_size_maxï¼Œå¦åˆ™ä¸ºç²¾ç¡®çš„
+	// å†…å­˜è®¡ç®—ï¼Œè¿™æ ·åšçš„å¥½å¤„æ˜¯:
+	// åœ¨éœ€è¦å°†ä¸€ä¸ªå†…å­˜é¡µä»æŸä¸€ä¸ªslabclass_tå¼ºæŠ¢ç»™å¦å¤–
+	// ä¸€ä¸ªslabclass_tæ—¶ï¼Œæ¯”è¾ƒå¥½å¤„ç†ã€‚ä¸ç„¶çš„è¯ï¼Œslabclass[i]ä»slabclass[j] 
+	// æŠ¢åˆ°çš„ä¸€ä¸ªå†…å­˜é¡µå¯ä»¥åˆ‡åˆ†ä¸ºnä¸ªitemï¼Œè€Œä»slabclass[k]æŠ¢åˆ°çš„
+	// ä¸€ä¸ªå†…å­˜é¡µå´åˆ‡åˆ†ä¸ºmä¸ªitemï¼Œè€Œæœ¬èº«çš„ä¸€ä¸ªå†…å­˜é¡µæœ‰sä¸ªitem
+	// è¿™æ ·çš„è¯æ˜¯ç›¸å½“æ··ä¹±çš„ã€‚å‡å¦‚æ¯•ç«Ÿç»Ÿä¸€äº†å†…å­˜é¡µå¤§å°ï¼Œé‚£
+	// ä¹ˆæ— è®ºä»å“ªé‡ŒæŠ¢åˆ°çš„å†…å­˜é¡µéƒ½æ˜¯åˆ‡åˆ†æˆä¸€æ ·å¤šçš„itemä¸ªæ•°ã€‚
     int len = settings.slab_reassign ? settings.item_size_max
         : p->size * p->perslab;
     char *ptr;
@@ -240,17 +240,17 @@ static int do_slabs_newslab(const unsigned int id) {
     }
 
     memset(ptr, 0, (size_t)len);
-    split_slab_page_into_freelist(ptr, id); // ½«Á¬ĞøÄÚ´æÇĞ¸îÎªchunk,´®Áª³ÉÁ´±í
+    split_slab_page_into_freelist(ptr, id); // å°†è¿ç»­å†…å­˜åˆ‡å‰²ä¸ºchunk,ä¸²è”æˆé“¾è¡¨
 
-    p->slab_list[p->slabs++] = ptr; // ±£´æÄÚ´æÒ³µ½slab_list£¬ÏûºÄÒ»¸öslab_listÔªËØ
-    mem_malloced += len; // ¼ÇÂ¼ÒÑ·ÖÅäÄÚ´æ£¬ÒÔ±ã»ñÈ¡ÄÚ´æ·ÖÅä×´Ì¬
+    p->slab_list[p->slabs++] = ptr; // ä¿å­˜å†…å­˜é¡µåˆ°slab_listï¼Œæ¶ˆè€—ä¸€ä¸ªslab_listå…ƒç´ 
+    mem_malloced += len; // è®°å½•å·²åˆ†é…å†…å­˜ï¼Œä»¥ä¾¿è·å–å†…å­˜åˆ†é…çŠ¶æ€
     MEMCACHED_SLABS_SLABCLASS_ALLOCATE(id);
 
     return 1;
 }
 
 /*@null@*/
-/* ÔÚ¶ÔÓ¦idµÄslab·ÖÅäÒ»¸öitem chunk£¬size±ØĞëÊÇĞ¡ÓÚµÈÓÚitem chunkµÄ
+/* åœ¨å¯¹åº”idçš„slabåˆ†é…ä¸€ä¸ªitem chunkï¼Œsizeå¿…é¡»æ˜¯å°äºç­‰äºitem chunkçš„
 */
 static void *do_slabs_alloc(const size_t size, unsigned int id) {
     slabclass_t *p;
@@ -265,7 +265,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     p = &slabclass[id];
     assert(p->sl_curr == 0 || ((item *)p->slots)->slabs_clsid == 0);
 
-	/*  ´Ó¿ÕÏĞÁ´±íslotsÖĞ·µ»ØÒ»¸öitem*/
+	/*  ä»ç©ºé—²é“¾è¡¨slotsä¸­è¿”å›ä¸€ä¸ªitem*/
     /* fail unless we have space at the end of a recently allocated page,
        we have something on our freelist, or we could allocate a new page */
     if (! (p->sl_curr != 0 || do_slabs_newslab(id) != 0)) {
@@ -273,7 +273,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
         ret = NULL;
     } else if (p->sl_curr != 0) {
         /* return off our freelist */
-		/* ·ÖÅäÒ»¸öitem £¬´ÓslotsÁ´±íÒÆ³ıÒ»¸ö½Úµã*/
+		/* åˆ†é…ä¸€ä¸ªitem ï¼Œä»slotsé“¾è¡¨ç§»é™¤ä¸€ä¸ªèŠ‚ç‚¹*/
         it = (item *)p->slots;
         p->slots = it->next;
         if (it->next) it->next->prev = 0;
@@ -282,7 +282,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     }
 
     if (ret) {
-        p->requested += size; /* ·ÖÅäÄÚ´æ*/
+        p->requested += size; /* åˆ†é…å†…å­˜*/
         MEMCACHED_SLABS_ALLOCATE(size, id, p->size, ret);
     } else {
         MEMCACHED_SLABS_ALLOCATE_FAILED(size, id);
@@ -291,7 +291,7 @@ static void *do_slabs_alloc(const size_t size, unsigned int id) {
     return ret;
 }
 
-// ½«ptrÄÚ´æ¹Ò½Óµ½¶ÔÓ¦idµÄslabÉÏ
+// å°†ptrå†…å­˜æŒ‚æ¥åˆ°å¯¹åº”idçš„slabä¸Š
 static void do_slabs_free(void *ptr, const size_t size, unsigned int id) {
     slabclass_t *p;
     item *it;
@@ -303,18 +303,18 @@ static void do_slabs_free(void *ptr, const size_t size, unsigned int id) {
 
     MEMCACHED_SLABS_FREE(size, id, ptr);
     p = &slabclass[id];
-	/* ·µ»Øµ½Á´±íÖĞ */
+	/* è¿”å›åˆ°é“¾è¡¨ä¸­ */
     it = (item *)ptr;
     it->it_flags |= ITEM_SLABBED;
     it->prev = 0;
 	
-	// ²åµ½¿ÕÏĞitemÁ´±íslotsÍ·²¿
+	// æ’åˆ°ç©ºé—²itemé“¾è¡¨slotså¤´éƒ¨
     it->next = p->slots; 
     if (it->next) it->next->prev = it;
     p->slots = it;
 
     p->sl_curr++;
-    p->requested -= size; /* ·µ»ØÄÚ´æ*/
+    p->requested -= size; /* è¿”å›å†…å­˜*/
     return;
 }
 
@@ -415,7 +415,7 @@ static void *memory_allocate(size_t size) {
         /* We are not using a preallocated large memory chunk */
         ret = malloc(size);
     } else {
-//     	preallocatedµÄÇé¿ö£¬Ö±½Ó´Ómem_baseÖĞÈ¡ÄÚ´æ
+//     	preallocatedçš„æƒ…å†µï¼Œç›´æ¥ä»mem_baseä¸­å–å†…å­˜
         ret = mem_current;
 
         if (size > mem_avail) {
@@ -424,9 +424,9 @@ static void *memory_allocate(size_t size) {
 
         /* mem_current pointer _must_ be aligned!!! */
         if (size % CHUNK_ALIGN_BYTES) {
-            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // ÏòÉÏÈ¡Õû¶ÔÆëCHUNK_ALIGN_BYTES
+            size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES); // å‘ä¸Šå–æ•´å¯¹é½CHUNK_ALIGN_BYTES
         }
-		// µ÷Õûmem_currentÖ¸ÕëÓëmem_avail´óĞ¡
+		// è°ƒæ•´mem_currentæŒ‡é’ˆä¸mem_availå¤§å°
         mem_current = ((char*)mem_current) + size;
         if (size < mem_avail) {
             mem_avail -= size;
@@ -438,16 +438,16 @@ static void *memory_allocate(size_t size) {
     return ret;
 }
 
-/* ÔÚ¶ÔÓ¦slabÏÂ·ÖÅäÒ»¸öitem chunck£¬item chunk´óĞ¡¿Ï¶¨ÊÇ´óÓÚµÈÓÚsize
+/* åœ¨å¯¹åº”slabä¸‹åˆ†é…ä¸€ä¸ªitem chunckï¼Œitem chunkå¤§å°è‚¯å®šæ˜¯å¤§äºç­‰äºsize
   * 
-  * slabÏÂµÄitem chunk´óĞ¡¶¼ÊÇ¹Ì¶¨µÄ£¬·ÖÅäµÄÊ±ºòĞèÒª¸ù¾İsize¼ÆËã³ö
-  * slabµÄid£¬È·±£slabÏÂµÄitem chunk´óĞ¡´óÓÚµÈÓÚsize£¬ÕâÊ±ºò¾Í»á³öÏÖÒ»
-  * ¸öÎÊÌâ:¶ÔÄÚ´æµÄÀûÓÃÂÊ²»ÊÇ100%
+  * slabä¸‹çš„item chunkå¤§å°éƒ½æ˜¯å›ºå®šçš„ï¼Œåˆ†é…çš„æ—¶å€™éœ€è¦æ ¹æ®sizeè®¡ç®—å‡º
+  * slabçš„idï¼Œç¡®ä¿slabä¸‹çš„item chunkå¤§å°å¤§äºç­‰äºsizeï¼Œè¿™æ—¶å€™å°±ä¼šå‡ºç°ä¸€
+  * ä¸ªé—®é¢˜:å¯¹å†…å­˜çš„åˆ©ç”¨ç‡ä¸æ˜¯100%
   * 
-  * ¼ÙÈçitem chunk´óĞ¡Îª1024byte£¬µ«ÊÇĞèÒª·ÖÅä900byte³öÈ¥£¬Í¨¹ı900byte¼Æ
-  * Ëã³öÀ´µÄslab idÂäÔÚ1024byteµÄslabÉÏ£¬ÄÇÃ´·ÖÅä³öÈ¥Ò»¸ö1024byteµÄitem chunk£¬
-  * µ¼ÖÂÊ£ÓàµÄ124byte²»ÄÜÍêÈ«ÀûÓÃ,ÄÚ´æÀûÓÃÂÊÎª87.8%£¬ÓÅ»¯µÄ
-  * ·½·¨±È½Ï¶à£¬Í¨³£ÊÇµ÷ÕûÃüÁîÖĞµÄfactor²ÎÊı
+  * å‡å¦‚item chunkå¤§å°ä¸º1024byteï¼Œä½†æ˜¯éœ€è¦åˆ†é…900byteå‡ºå»ï¼Œé€šè¿‡900byteè®¡
+  * ç®—å‡ºæ¥çš„slab idè½åœ¨1024byteçš„slabä¸Šï¼Œé‚£ä¹ˆåˆ†é…å‡ºå»ä¸€ä¸ª1024byteçš„item chunkï¼Œ
+  * å¯¼è‡´å‰©ä½™çš„124byteä¸èƒ½å®Œå…¨åˆ©ç”¨,å†…å­˜åˆ©ç”¨ç‡ä¸º87.8%ï¼Œä¼˜åŒ–çš„
+  * æ–¹æ³•æ¯”è¾ƒå¤šï¼Œé€šå¸¸æ˜¯è°ƒæ•´å‘½ä»¤ä¸­çš„factorå‚æ•°
  */
 void *slabs_alloc(size_t size, unsigned int id) {
     void *ret;
@@ -484,26 +484,26 @@ void slabs_adjust_mem_requested(unsigned int id, size_t old, size_t ntotal)
     pthread_mutex_unlock(&slabs_lock);
 }
 
-// Çé¾°:
-// ¿ªÊ¼½×¶Î£¬ĞèÒªÏòmemcached´æ´¢´óÁ¿³¤¶ÈÎª1KBµÄÊı¾İ
-// µ÷ÕûÖ®ºóĞèÒª´æ´¢´óÁ¿10KBµÄÊı¾İ£¬²¢ÇÒºÜÉÙÊ¹ÓÃ1KBÊı¾İ,
-// Êı¾İÔ½À´Ô½¶à£¬ÄÚ´æ¿ªÊ¼³Ô½ô£¬ÄÚ´æ²»¹»ĞèÒªÊ¹ÓÃLRUÌÔÌ­
-// Ò»Ğ©10KBµÄitem
+// æƒ…æ™¯:
+// å¼€å§‹é˜¶æ®µï¼Œéœ€è¦å‘memcachedå­˜å‚¨å¤§é‡é•¿åº¦ä¸º1KBçš„æ•°æ®
+// è°ƒæ•´ä¹‹åéœ€è¦å­˜å‚¨å¤§é‡10KBçš„æ•°æ®ï¼Œå¹¶ä¸”å¾ˆå°‘ä½¿ç”¨1KBæ•°æ®,
+// æ•°æ®è¶Šæ¥è¶Šå¤šï¼Œå†…å­˜å¼€å§‹åƒç´§ï¼Œå†…å­˜ä¸å¤Ÿéœ€è¦ä½¿ç”¨LRUæ·˜æ±°
+// ä¸€äº›10KBçš„item
 
-// ÒÔÉÏÇé¿ö´óÁ¿1KBµÄitem¹ıÓÚÀË·Ñ£¬ÒòÎªºÜÉÙ·ÃÎÊÕâĞ©item£¬
-// ËùÒÔ¼´Ê¹ËüÃÇ³¬Ê±¹ıÆÚ£¬»¹ÊÇ»áÕ¼¾İ×Å¹şÏ£±íºÍLRU¶ÓÁĞ
-// ¶ÔÓÚ¹şÏ£±íÀ´Ëµ´óÁ¿µÄ½©Ê¬item»áÔö¼Ó¹şÏ£³åÍ»µÄ¿ÉÄÜĞÔ£¬
-// ²¢ÇÒÔÚÇ¨ÒÆ¹şÏ£±íµÄÊ±ºòÒ²ÀË·ÑcpuÊ±¼ä¡£
+// ä»¥ä¸Šæƒ…å†µå¤§é‡1KBçš„itemè¿‡äºæµªè´¹ï¼Œå› ä¸ºå¾ˆå°‘è®¿é—®è¿™äº›itemï¼Œ
+// æ‰€ä»¥å³ä½¿å®ƒä»¬è¶…æ—¶è¿‡æœŸï¼Œè¿˜æ˜¯ä¼šå æ®ç€å“ˆå¸Œè¡¨å’ŒLRUé˜Ÿåˆ—
+// å¯¹äºå“ˆå¸Œè¡¨æ¥è¯´å¤§é‡çš„åƒµå°¸itemä¼šå¢åŠ å“ˆå¸Œå†²çªçš„å¯èƒ½æ€§ï¼Œ
+// å¹¶ä¸”åœ¨è¿ç§»å“ˆå¸Œè¡¨çš„æ—¶å€™ä¹Ÿæµªè´¹cpuæ—¶é—´ã€‚
 
-// Ê¹ÓÃLRUÅÀ³æ+ lru_crawlerÃüÁîÊÇ¿ÉÒÔÇ¿ÖÆ¸ÉµôÕâĞ©½©Ê¬item£¬
-// µ«¸ÉµôÕâĞ©½©Ê¬itemºó£¬ËüÃÇÕ¼¾İµÄÄÚ´æÊÇ¹é»¹µ½1KBµÄ
-// ÄÇĞ©slab·ÖÅäÆ÷ÖĞ£¬1KBµÄslab·ÖÅäÆ÷²»»áÎª10KBµÄitem·ÖÅäÄÚ´æ£¬
-// Ò²²»»á½«×Ô¼º¿ÕÏĞµÄÄÚ´æÒ³×ªÒÆµ½10KBµÄslabµ±ÖĞ£¬Òò´Ë
-// ÕâÃ´×ö´ï²»µ½ÓÅ»¯ÄÚ´æÊ¹ÓÃµÄÒªÇó
+// ä½¿ç”¨LRUçˆ¬è™«+ lru_crawlerå‘½ä»¤æ˜¯å¯ä»¥å¼ºåˆ¶å¹²æ‰è¿™äº›åƒµå°¸itemï¼Œ
+// ä½†å¹²æ‰è¿™äº›åƒµå°¸itemåï¼Œå®ƒä»¬å æ®çš„å†…å­˜æ˜¯å½’è¿˜åˆ°1KBçš„
+// é‚£äº›slabåˆ†é…å™¨ä¸­ï¼Œ1KBçš„slabåˆ†é…å™¨ä¸ä¼šä¸º10KBçš„itemåˆ†é…å†…å­˜ï¼Œ
+// ä¹Ÿä¸ä¼šå°†è‡ªå·±ç©ºé—²çš„å†…å­˜é¡µè½¬ç§»åˆ°10KBçš„slabå½“ä¸­ï¼Œå› æ­¤
+// è¿™ä¹ˆåšè¾¾ä¸åˆ°ä¼˜åŒ–å†…å­˜ä½¿ç”¨çš„è¦æ±‚
 
-// memcachedÌá¹©µÄslab automove ºÍ rebalance¾ÍÊÇÓÃÀ´½â¾öÉÏÃæµÄÎÊÌâ
+// memcachedæä¾›çš„slab automove å’Œ rebalanceå°±æ˜¯ç”¨æ¥è§£å†³ä¸Šé¢çš„é—®é¢˜
 
-// ²Î¿¼:http://blog.csdn.net/luotuo44/article/details/43015129
+// å‚è€ƒ:http://blog.csdn.net/luotuo44/article/details/43015129
 static pthread_cond_t maintenance_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t slab_rebalance_cond = PTHREAD_COND_INITIALIZER;
 static volatile int do_run_slab_thread = 1;
@@ -512,14 +512,14 @@ static volatile int do_run_slab_rebalance_thread = 1;
 #define DEFAULT_SLAB_BULK_CHECK 1
 int slab_bulk_check = DEFAULT_SLAB_BULK_CHECK;
 
-// ½«Ò»¸öslab classµÄÒ»¸öÄÚ´æÒ³±ê×¢ÎªÒªÒÆ¶¯µÄ£¬
-// ´ËÊ±¾Í²»ÄÜÈÃworkerÏß³Ì·ÃÎÊÕâ¸öÄÚ´æÒ³µÄitem
-// ¼ÙÈçworkerÏß³Ì¸ÕºÃÒª·ÃÎÊÕâ¸öÄÚ´æÒ³µÄÒ»¸öitem£¬
-// ¶ÔÓ¦µÄ´¦ÀíÇé¿ö²Î¿´do_item_get
+// å°†ä¸€ä¸ªslab classçš„ä¸€ä¸ªå†…å­˜é¡µæ ‡æ³¨ä¸ºè¦ç§»åŠ¨çš„ï¼Œ
+// æ­¤æ—¶å°±ä¸èƒ½è®©workerçº¿ç¨‹è®¿é—®è¿™ä¸ªå†…å­˜é¡µçš„item
+// å‡å¦‚workerçº¿ç¨‹åˆšå¥½è¦è®¿é—®è¿™ä¸ªå†…å­˜é¡µçš„ä¸€ä¸ªitemï¼Œ
+// å¯¹åº”çš„å¤„ç†æƒ…å†µå‚çœ‹do_item_get
 
 static int slab_rebalance_start(void) {
     slabclass_t *s_cls;
-    int no_go = 0; // ·Ç0¼´´íÎó
+    int no_go = 0; // é0å³é”™è¯¯
 
     pthread_mutex_lock(&cache_lock);
     pthread_mutex_lock(&slabs_lock);
@@ -533,7 +533,7 @@ static int slab_rebalance_start(void) {
 
     s_cls = &slabclass[slab_rebal.s_clsid];
 
-	// È·±£d_clsidµÄslabÄÚ´æÒ³Êı×éÓĞ×ã¹»µÄÔªËØ¹©Ê¹ÓÃ
+	// ç¡®ä¿d_clsidçš„slabå†…å­˜é¡µæ•°ç»„æœ‰è¶³å¤Ÿçš„å…ƒç´ ä¾›ä½¿ç”¨
     if (!grow_slab_list(slab_rebal.d_clsid)) {
         no_go = -1;
     }
@@ -546,11 +546,11 @@ static int slab_rebalance_start(void) {
         pthread_mutex_unlock(&cache_lock);
         return no_go; /* Should use a wrapper function... */
     }
-    //±êÖ¾½«Ô´slab classµÄµÚ¼¸¸öÄÚ´æÒ³·Ö¸øÄ¿±êslab class  
-    //ÕâÀïÊÇÄ¬ÈÏÊÇ½«µÚÒ»¸öÄÚ´æÒ³·Ö¸øÄ¿±êslab class £¬why?
+    //æ ‡å¿—å°†æºslab classçš„ç¬¬å‡ ä¸ªå†…å­˜é¡µåˆ†ç»™ç›®æ ‡slab class  
+    //è¿™é‡Œæ˜¯é»˜è®¤æ˜¯å°†ç¬¬ä¸€ä¸ªå†…å­˜é¡µåˆ†ç»™ç›®æ ‡slab class ï¼Œwhy?
     s_cls->killing = 1;
 
-	// ÉèÖÃºÃslab_start slab_end slab_pos
+	// è®¾ç½®å¥½slab_start slab_end slab_pos
     slab_rebal.slab_start = s_cls->slab_list[s_cls->killing - 1]; 	
     slab_rebal.slab_end   = (char *)slab_rebal.slab_start +			
         (s_cls->size * s_cls->perslab);
@@ -583,7 +583,7 @@ enum move_status {
  * threads. instead, note we found a busy one and bail. logic in do_item_get
  * will prevent busy items from continuing to be busy
  */
- //Çå³şÄÚ´æÒ³ÖĞµÄitem£¬»ØÊÕËùÓĞitemÎªÄÚ´æÒ³Ç¨ÒÆ×ö×¼±¸
+ //æ¸…æ¥šå†…å­˜é¡µä¸­çš„itemï¼Œå›æ”¶æ‰€æœ‰itemä¸ºå†…å­˜é¡µè¿ç§»åšå‡†å¤‡
 static int slab_rebalance_move(void) {
     slabclass_t *s_cls;
     int x;
@@ -595,7 +595,7 @@ static int slab_rebalance_move(void) {
     pthread_mutex_lock(&slabs_lock);
 
     s_cls = &slabclass[slab_rebal.s_clsid];
-	// Ò»´ÎÖ»É¨Ãæslab_bulk_check¸öitem £¬·ÀÖ¹³¤ÆÚÕ¼ÓÃcpu
+	// ä¸€æ¬¡åªæ‰«é¢slab_bulk_checkä¸ªitem ï¼Œé˜²æ­¢é•¿æœŸå ç”¨cpu
     for (x = 0; x < slab_bulk_check; x++) {
         item *it = slab_rebal.slab_pos;
         status = MOVE_PASS;
@@ -607,29 +607,29 @@ static int slab_rebalance_move(void) {
             } else {
                 refcount = refcount_incr(&it->refcount);
                 if (refcount == 1) { /* item is unlinked, unused */
-					//Èç¹ûit_flags&ITEM_SLABBEDÎªÕæ£¬ÄÇÃ´¾ÍËµÃ÷Õâ¸öitem  
-                    //¸ù±¾¾ÍÃ»ÓĞ·ÖÅä³öÈ¥¡£Èç¹ûÎª¼Ù£¬ÄÇÃ´ËµÃ÷Õâ¸öitem±»·ÖÅä  
-                    //³öÈ¥ÁË£¬µ«´¦ÓÚ¹é»¹Í¾ÖĞ¡£²Î¿¼do_item_get 
-                    if (it->it_flags & ITEM_SLABBED) { //Ã»ÓĞ·ÖÅä³öÈ¥
+					//å¦‚æœit_flags&ITEM_SLABBEDä¸ºçœŸï¼Œé‚£ä¹ˆå°±è¯´æ˜è¿™ä¸ªitem  
+                    //æ ¹æœ¬å°±æ²¡æœ‰åˆ†é…å‡ºå»ã€‚å¦‚æœä¸ºå‡ï¼Œé‚£ä¹ˆè¯´æ˜è¿™ä¸ªitemè¢«åˆ†é…  
+                    //å‡ºå»äº†ï¼Œä½†å¤„äºå½’è¿˜é€”ä¸­ã€‚å‚è€ƒdo_item_get 
+                    if (it->it_flags & ITEM_SLABBED) { //æ²¡æœ‰åˆ†é…å‡ºå»
                         /* remove from slab freelist */
-						// ´Ó¿ÕÏĞslotsÁ´±íÒÆ³ı
+						// ä»ç©ºé—²slotsé“¾è¡¨ç§»é™¤
                         if (s_cls->slots == it) {
-							// Í·²¿
+							// å¤´éƒ¨
                             s_cls->slots = it->next;
                         }
-						// Ö¸ÕëÉ¾³ı
+						// æŒ‡é’ˆåˆ é™¤
                         if (it->next) it->next->prev = it->prev;
                         if (it->prev) it->prev->next = it->next;
                         s_cls->sl_curr--;
                         status = MOVE_DONE;
                     } else {
-                    	//»¹ÓĞÁíÍâÒ»¸öworkerÏß³ÌÔÚ¹é»¹Õâ¸öitem  
+                    	//è¿˜æœ‰å¦å¤–ä¸€ä¸ªworkerçº¿ç¨‹åœ¨å½’è¿˜è¿™ä¸ªitem  
                         status = MOVE_BUSY;
                     }
                 } else if (refcount == 2) { /* item is linked but not busy */
-                 	//Ã»ÓĞworkerÏß³ÌÒıÓÃÕâ¸öitem  £¬
+                 	//æ²¡æœ‰workerçº¿ç¨‹å¼•ç”¨è¿™ä¸ªitem  ï¼Œ
                     if ((it->it_flags & ITEM_LINKED) != 0) {
-						//Ö±½Ó´ÓlruºÍ¹şÏ£±íÒÆ³ı
+						//ç›´æ¥ä»lruå’Œå“ˆå¸Œè¡¨ç§»é™¤
                         do_item_unlink_nolock(it, hv);
                         status = MOVE_DONE;
                     } else {
@@ -656,7 +656,7 @@ static int slab_rebalance_move(void) {
                 it->slabs_clsid = 255;
                 break;
             case MOVE_BUSY:
-				// »¹Ô­Ö®Ç°µÄrefcount_incr²Ù×÷£¬×¢ÒâMOVE_DONEÖ±½Ó¾ÍÇåÁãÒıÓÃ
+				// è¿˜åŸä¹‹å‰çš„refcount_incræ“ä½œï¼Œæ³¨æ„MOVE_DONEç›´æ¥å°±æ¸…é›¶å¼•ç”¨
                 refcount_decr(&it->refcount);
             case MOVE_LOCKED:
                 slab_rebal.busy_items++;
@@ -665,21 +665,21 @@ static int slab_rebalance_move(void) {
             case MOVE_PASS:
                 break;
         }
-		// Ö¸ÏòÏÂÒ»¸öitem
+		// æŒ‡å‘ä¸‹ä¸€ä¸ªitem
         slab_rebal.slab_pos = (char *)slab_rebal.slab_pos + s_cls->size;
         if (slab_rebal.slab_pos >= slab_rebal.slab_end)
             break;
     }
-	// É¨Ãæ½áÊø
+	// æ‰«é¢ç»“æŸ
     if (slab_rebal.slab_pos >= slab_rebal.slab_end) {
         /* Some items were busy, start again from the top */
-		//ÔÚ´¦ÀíµÄÊ±ºò£¬Ìø¹ıÁËÒ»Ğ©item(ÒòÎªÓĞworkerÏß³ÌÔÚÒıÓÃ)
+		//åœ¨å¤„ç†çš„æ—¶å€™ï¼Œè·³è¿‡äº†ä¸€äº›item(å› ä¸ºæœ‰workerçº¿ç¨‹åœ¨å¼•ç”¨)
         if (slab_rebal.busy_items) {
-			//´ÓÍ·ÔÙÉ¨ÃèÒ»´ÎÕâ¸öÒ³  
+			//ä»å¤´å†æ‰«æä¸€æ¬¡è¿™ä¸ªé¡µ  
             slab_rebal.slab_pos = slab_rebal.slab_start;
             slab_rebal.busy_items = 0;
         } else {
-            slab_rebal.done++;//±êÖ¾ÒÑ¾­´¦ÀíÍêÕâ¸öÒ³µÄËùÓĞitem 
+            slab_rebal.done++;//æ ‡å¿—å·²ç»å¤„ç†å®Œè¿™ä¸ªé¡µçš„æ‰€æœ‰item 
         }
     }
 
@@ -689,7 +689,7 @@ static int slab_rebalance_move(void) {
     return was_busy;
 }
 
-// ½«src slabµÄÄÚ´æÒ³£¬ÒÆ¶¯µ½dst slabÖĞ
+// å°†src slabçš„å†…å­˜é¡µï¼Œç§»åŠ¨åˆ°dst slabä¸­
 static void slab_rebalance_finish(void) {
     slabclass_t *s_cls;
     slabclass_t *d_cls;
@@ -701,8 +701,8 @@ static void slab_rebalance_finish(void) {
     d_cls   = &slabclass[slab_rebal.d_clsid];
 
     /* At this point the stolen slab is completely clear */
-	// Êı×éÖĞµÄÔªËØÉ¾³ı£¬½«Êı×éÎ²²¿ÔªËØ¸²¸ÇÊı×éÖĞ
-	// ±»É¾³ıÔªËØ
+	// æ•°ç»„ä¸­çš„å…ƒç´ åˆ é™¤ï¼Œå°†æ•°ç»„å°¾éƒ¨å…ƒç´ è¦†ç›–æ•°ç»„ä¸­
+	// è¢«åˆ é™¤å…ƒç´ 
     s_cls->slab_list[s_cls->killing - 1] =
         s_cls->slab_list[s_cls->slabs - 1];
     s_cls->slabs--;
@@ -710,9 +710,9 @@ static void slab_rebalance_finish(void) {
 
     memset(slab_rebal.slab_start, 0, (size_t)settings.item_size_max);
 
-	// ½«ÄÚ´æÒ³ÒÆ¶¯µ½dst slab£¬Ö±½ÓÔÚÄÚ´æÒ³Êı×éÎ²²¿Ìí¼Ó
+	// å°†å†…å­˜é¡µç§»åŠ¨åˆ°dst slabï¼Œç›´æ¥åœ¨å†…å­˜é¡µæ•°ç»„å°¾éƒ¨æ·»åŠ 
     d_cls->slab_list[d_cls->slabs++] = slab_rebal.slab_start;
-	// ÄÚ´æÒ³ÇĞ¸îÎªitem
+	// å†…å­˜é¡µåˆ‡å‰²ä¸ºitem
     split_slab_page_into_freelist(slab_rebal.slab_start,
         slab_rebal.d_clsid);
 
@@ -743,12 +743,12 @@ static void slab_rebalance_finish(void) {
  * complex.
  */
 
-//±¾º¯ÊıÑ¡³ö×î¼Ñ±»ÌßÑ¡ÊÖ£¬ºÍ×î¼Ñ²»±»ÌßÑ¡ÊÖ
-//·µ»Ø1±íÊ¾³É¹¦Ñ¡³öÁ½Î»Ñ¡ÊÖ  
-//·µ»Ø0±íÊ¾Ã»ÓĞÑ¡³ö£¬ÒªÍ¬Ê±Ñ¡³öÁ½¸öÑ¡ÊÖ²Å·µ»Ø1
+//æœ¬å‡½æ•°é€‰å‡ºæœ€ä½³è¢«è¸¢é€‰æ‰‹ï¼Œå’Œæœ€ä½³ä¸è¢«è¸¢é€‰æ‰‹
+//è¿”å›1è¡¨ç¤ºæˆåŠŸé€‰å‡ºä¸¤ä½é€‰æ‰‹  
+//è¿”å›0è¡¨ç¤ºæ²¡æœ‰é€‰å‡ºï¼Œè¦åŒæ—¶é€‰å‡ºä¸¤ä¸ªé€‰æ‰‹æ‰è¿”å›1
 
-// src ±íÊ¾item²»ÊÇ¾­³£±»ÌÔÌ­£¬Á¬ĞøÈı´Îitem²»±»Ìß
-// dst ±íÊ¾item¾­³£±»ÌÔÌ­Ìß³ö£¬Á¬ĞøÈı´ÎitemÌÔÌ­Êı¶¼ÊÇµÚÒ»
+// src è¡¨ç¤ºitemä¸æ˜¯ç»å¸¸è¢«æ·˜æ±°ï¼Œè¿ç»­ä¸‰æ¬¡itemä¸è¢«è¸¢
+// dst è¡¨ç¤ºitemç»å¸¸è¢«æ·˜æ±°è¸¢å‡ºï¼Œè¿ç»­ä¸‰æ¬¡itemæ·˜æ±°æ•°éƒ½æ˜¯ç¬¬ä¸€
 static int slab_automove_decision(int *src, int *dst) {
     static uint64_t evicted_old[POWER_LARGEST];
     static unsigned int slab_zeroes[POWER_LARGEST];
@@ -765,26 +765,26 @@ static int slab_automove_decision(int *src, int *dst) {
     static rel_time_t next_run;
 
     /* Run less frequently than the slabmove tester. */
-	// ²»ÄÜµ÷ÓÃ¹ıÓÚÆµ·±£¬10ÃëÒ»´Î
+	// ä¸èƒ½è°ƒç”¨è¿‡äºé¢‘ç¹ï¼Œ10ç§’ä¸€æ¬¡
     if (current_time >= next_run) {
         next_run = current_time + 10;
     } else {
         return 0;
     }
-	//»ñÈ¡Ã¿Ò»¸öslabµÄitem±»Ìß´ÎÊı 
+	//è·å–æ¯ä¸€ä¸ªslabçš„itemè¢«è¸¢æ¬¡æ•° 
     item_stats_evictions(evicted_new);
     pthread_mutex_lock(&cache_lock);
     for (i = POWER_SMALLEST; i < power_largest; i++) {
-        total_pages[i] = slabclass[i].slabs; // Ã¿¸öslabµÄÄÚ´æÒ³Êı
+        total_pages[i] = slabclass[i].slabs; // æ¯ä¸ªslabçš„å†…å­˜é¡µæ•°
     }
     pthread_mutex_unlock(&cache_lock);
 
     /* Find a candidate source; something with zero evicts 3+ times */
     for (i = POWER_SMALLEST; i < power_largest; i++) {
-        evicted_diff = evicted_new[i] - evicted_old[i];// evicted_diff´óÓÚµÈÓÚ0£¬item±»Ìß´ÎÊıÊÇÕıÏòÔö³¤
+        evicted_diff = evicted_new[i] - evicted_old[i];// evicted_diffå¤§äºç­‰äº0ï¼Œitemè¢«è¸¢æ¬¡æ•°æ˜¯æ­£å‘å¢é•¿
         if (evicted_diff == 0 && total_pages[i] > 2) {
-			//evicted_diffµÈÓÚ0ËµÃ÷Õâ¸öslabÃ»ÓĞitem±»Ìß£¬¶øÇÒ  
-            //ËüÓÖÕ¼ÓĞÖÁÉÙÁ½¸öslabÄÚ´æÒ³
+			//evicted_diffç­‰äº0è¯´æ˜è¿™ä¸ªslabæ²¡æœ‰itemè¢«è¸¢ï¼Œè€Œä¸”  
+            //å®ƒåˆå æœ‰è‡³å°‘ä¸¤ä¸ªslabå†…å­˜é¡µ
             slab_zeroes[i]++;
             if (source == 0 && slab_zeroes[i] >= 3)
                 source = i;
@@ -799,16 +799,16 @@ static int slab_automove_decision(int *src, int *dst) {
     }
 
     /* Pick a valid destination */
-	// ×ªÒÆslabÄÚ´æÒ³Ğè½÷É÷£¬Òò´ËÕâÀï×öÁË·À±¸
-    //Ñ¡³öÁ¬Ğø3´Î¶¼ÊÇitem±»Ìß´ÎÊı×î´óµÄslab
+	// è½¬ç§»slabå†…å­˜é¡µéœ€è°¨æ…ï¼Œå› æ­¤è¿™é‡Œåšäº†é˜²å¤‡
+    //é€‰å‡ºè¿ç»­3æ¬¡éƒ½æ˜¯itemè¢«è¸¢æ¬¡æ•°æœ€å¤§çš„slab
     if (slab_winner != 0 && slab_winner == highest_slab) {
         slab_wins++;
         if (slab_wins >= 3)
             dest = slab_winner;
     } else {
-    	// ÖØĞÂ¼ÆÊı
+    	// é‡æ–°è®¡æ•°
         slab_wins = 1;
-        slab_winner = highest_slab; //±¾´ÎµÄ×î¼Ñ±»ÌßÑ¡ÊÖ  
+        slab_winner = highest_slab; //æœ¬æ¬¡çš„æœ€ä½³è¢«è¸¢é€‰æ‰‹  
     }
 
     if (source && dest) {
@@ -827,13 +827,13 @@ static void *slab_maintenance_thread(void *arg) {
     int src, dest;
 
     while (do_run_slab_thread) {
-		//×Ô¶¯¼ì²â¹¦ÄÜÓÉÈ«¾Ö±äÁ¿settings.slab_automove¿ØÖÆ £¬Ä¬ÈÏÖµÎª0
-		// $memcached -o slab_reassign,slab_automove=1¿ªÆô×Ô¶¯¼ì²â¹¦ÄÜ
-		// ¿Í»§¶ËÃüÁîÆô¶¯automove¹¦ÄÜ£¬Ê¹ÓÃÃüÁîslabsautomove <0|1>
-		// ¿Í»§¶ËµÄÕâ¸öÃüÁîÖ»ÊÇ¼òµ¥µØÉèÖÃsettings.slab_automoveµÄÖµ£¬
-		// ²»×öÆäËûÈÎºÎ¹¤×÷
-        if (settings.slab_automove == 1) { //Æô¶¯ÁËautomove¹¦ÄÜ  
-        	// ÅĞ¶ÏÊÇ·ñÓ¦¸Ã½øĞĞÄÚ´æÒ³ÖØ·ÖÅä
+		//è‡ªåŠ¨æ£€æµ‹åŠŸèƒ½ç”±å…¨å±€å˜é‡settings.slab_automoveæ§åˆ¶ ï¼Œé»˜è®¤å€¼ä¸º0
+		// $memcached -o slab_reassign,slab_automove=1å¼€å¯è‡ªåŠ¨æ£€æµ‹åŠŸèƒ½
+		// å®¢æˆ·ç«¯å‘½ä»¤å¯åŠ¨automoveåŠŸèƒ½ï¼Œä½¿ç”¨å‘½ä»¤slabsautomove <0|1>
+		// å®¢æˆ·ç«¯çš„è¿™ä¸ªå‘½ä»¤åªæ˜¯ç®€å•åœ°è®¾ç½®settings.slab_automoveçš„å€¼ï¼Œ
+		// ä¸åšå…¶ä»–ä»»ä½•å·¥ä½œ
+        if (settings.slab_automove == 1) { //å¯åŠ¨äº†automoveåŠŸèƒ½  
+        	// åˆ¤æ–­æ˜¯å¦åº”è¯¥è¿›è¡Œå†…å­˜é¡µé‡åˆ†é…
             if (slab_automove_decision(&src, &dest) == 1) {
                 /* Blind to the return codes. It will retry on its own */
                 slabs_reassign(src, dest);
@@ -865,17 +865,17 @@ static void *slab_rebalance_thread(void *arg) {
 
             was_busy = 0;
         } else if (slab_rebalance_signal && slab_rebal.slab_start != NULL) {
-            // slab_rebalance_start Ö®ºóÖ´ĞĞÕâÒ»²½
-            // Çå³ıÄÚ´æÒ³ÖĞËùÓĞitem£¬½«item´Ó¹şÏ£±íºÍLRU¶ÓÁĞÖĞÉ¾³ı
+            // slab_rebalance_start ä¹‹åæ‰§è¡Œè¿™ä¸€æ­¥
+            // æ¸…é™¤å†…å­˜é¡µä¸­æ‰€æœ‰itemï¼Œå°†itemä»å“ˆå¸Œè¡¨å’ŒLRUé˜Ÿåˆ—ä¸­åˆ é™¤
             was_busy = slab_rebalance_move();
         }
 
         if (slab_rebal.done) {
-			//Íê³ÉÕæÕıµÄÄÚ´æÒ³Ç¨ÒÆ²Ù×÷
-			//°ÑÒ»¸öÄÚ´æÒ³´ÓÒ»¸öslab class ×ªÒÆµ½ÁíÍâÒ»¸öslab classÖĞ
+			//å®ŒæˆçœŸæ­£çš„å†…å­˜é¡µè¿ç§»æ“ä½œ
+			//æŠŠä¸€ä¸ªå†…å­˜é¡µä»ä¸€ä¸ªslab class è½¬ç§»åˆ°å¦å¤–ä¸€ä¸ªslab classä¸­
             slab_rebalance_finish();
         } else if (was_busy) {
-        	// ²¿·ÖitemÕıÔÚ±»ÒıÓÃ£¬ÏÂÒ»¸öÂÖÑ¯ÔÚµ÷ÓÃslab_rebalance_move
+        	// éƒ¨åˆ†itemæ­£åœ¨è¢«å¼•ç”¨ï¼Œä¸‹ä¸€ä¸ªè½®è¯¢åœ¨è°ƒç”¨slab_rebalance_move
             /* Stuck waiting for some items to unlock, so slow down a bit
              * to give them a chance to free up */
             usleep(50);
@@ -918,7 +918,7 @@ static enum reassign_result_type do_slabs_reassign(int src, int dst) {
 
     /* Special indicator to choose ourselves. */
     if (src == -1) {
-        src = slabs_reassign_pick_any(dst);// Ëæ»úÑ¡È¡Ò»¸öpage
+        src = slabs_reassign_pick_any(dst);// éšæœºé€‰å–ä¸€ä¸ªpage
         /* TODO: If we end up back at -1, return a new error type */
     }
 
@@ -932,7 +932,7 @@ static enum reassign_result_type do_slabs_reassign(int src, int dst) {
     slab_rebal.s_clsid = src;
     slab_rebal.d_clsid = dst;
 
-	// »½ĞÑrebalanceÏß³Ì
+	// å”¤é†’rebalanceçº¿ç¨‹
     slab_rebalance_signal = 1;
     pthread_cond_signal(&slab_rebalance_cond);
 
@@ -961,11 +961,11 @@ void slabs_rebalancer_resume(void) {
 static pthread_t maintenance_tid;
 static pthread_t rebalance_tid;
 
-// settings.slab_reassign == true ²Å»á¿ªÆô´Ë¹¦ÄÜ
-// Æô¶¯ÁËÁ½¸öÏß³Ì£ºrebalanceÏß³Ì(slab_rebalance_thread)ºÍautomoveÏß³Ì(slab_maintenance_thread)
-// automoveÏß³Ì»á×Ô¶¯¼ì²âÊÇ·ñĞèÒª½øĞĞÄÚ´æÒ³ÖØ·ÖÅä
-// Èç¹û¼ì²âµ½ĞèÒªÖØ·ÖÅä£¬ÄÇÃ´¾Í»á½ĞrebalanceÏß³ÌÖ´ĞĞ
-// Õâ¸öÄÚ´æÒ³ÖØ·ÖÅä¹¤×÷
+// settings.slab_reassign == true æ‰ä¼šå¼€å¯æ­¤åŠŸèƒ½
+// å¯åŠ¨äº†ä¸¤ä¸ªçº¿ç¨‹ï¼šrebalanceçº¿ç¨‹(slab_rebalance_thread)å’Œautomoveçº¿ç¨‹(slab_maintenance_thread)
+// automoveçº¿ç¨‹ä¼šè‡ªåŠ¨æ£€æµ‹æ˜¯å¦éœ€è¦è¿›è¡Œå†…å­˜é¡µé‡åˆ†é…
+// å¦‚æœæ£€æµ‹åˆ°éœ€è¦é‡åˆ†é…ï¼Œé‚£ä¹ˆå°±ä¼šå«rebalanceçº¿ç¨‹æ‰§è¡Œ
+// è¿™ä¸ªå†…å­˜é¡µé‡åˆ†é…å·¥ä½œ
 int start_slab_maintenance_thread(void) {
     int ret;
     slab_rebalance_signal = 0;

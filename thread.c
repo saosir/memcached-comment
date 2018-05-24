@@ -75,9 +75,9 @@ static LIBEVENT_THREAD *threads;
 /*
  * Number of worker threads that have finished setting themselves up.
  */
-static int init_count = 0; // ¹¤×÷Ïß³Ì³õÊ¼»¯Çé¿ö£¬
-						   // 1. masterµÈ´ıworkerÏß³Ì³õÊ¼»¯Íê³É
-						   // 2. µÈ´ıswitch_item_lock_typeÇĞ»»workerÏß³Ì×´Ì¬Íê³É
+static int init_count = 0; // å·¥ä½œçº¿ç¨‹åˆå§‹åŒ–æƒ…å†µï¼Œ
+						   // 1. masterç­‰å¾…workerçº¿ç¨‹åˆå§‹åŒ–å®Œæˆ
+						   // 2. ç­‰å¾…switch_item_lock_typeåˆ‡æ¢workerçº¿ç¨‹çŠ¶æ€å®Œæˆ
 static pthread_mutex_t init_lock;
 static pthread_cond_t init_cond;
 
@@ -160,14 +160,14 @@ void item_unlock(uint32_t hv) {
     }
 }
 
-// µÈ´ıËùÓĞÏß³ÌÍê³É´¦ÀíÄ³¸öÈÎÎñ
+// ç­‰å¾…æ‰€æœ‰çº¿ç¨‹å®Œæˆå¤„ç†æŸä¸ªä»»åŠ¡
 static void wait_for_thread_registration(int nthreads) {
     while (init_count < nthreads) {
         pthread_cond_wait(&init_cond, &init_lock);
     }
 }
 
-// Í¨ÖªÒÑ¾­Íê³ÉµÄÏûÏ¢
+// é€šçŸ¥å·²ç»å®Œæˆçš„æ¶ˆæ¯
 static void register_thread_initialized(void) {
     pthread_mutex_lock(&init_lock);
     init_count++;
@@ -175,7 +175,7 @@ static void register_thread_initialized(void) {
     pthread_mutex_unlock(&init_lock);
 }
 
-// Í¨ÖªÃ¿¸öworkÏß³ÌÇĞ»»item_lock
+// é€šçŸ¥æ¯ä¸ªworkçº¿ç¨‹åˆ‡æ¢item_lock
 void switch_item_lock_type(enum item_lock_types type) {
     char buf[1];
     int i;
@@ -194,14 +194,14 @@ void switch_item_lock_type(enum item_lock_types type) {
     }
 
     pthread_mutex_lock(&init_lock);
-    init_count = 0; // thread_init ÓĞÊ¹ÓÃ´Ë±äÁ¿£¬ÓÃÓÚmasterµÈ´ıËùÓĞworkerÏß³Ì³õÊ¼»¯Íê³É
+    init_count = 0; // thread_init æœ‰ä½¿ç”¨æ­¤å˜é‡ï¼Œç”¨äºmasterç­‰å¾…æ‰€æœ‰workerçº¿ç¨‹åˆå§‹åŒ–å®Œæˆ
     for (i = 0; i < settings.num_threads; i++) {
         if (write(threads[i].notify_send_fd, buf, 1) != 1) {
             perror("Failed writing to notify pipe");
             /* TODO: This is a fatal problem. Can it ever happen temporarily? */
         }
     }
-    wait_for_thread_registration(settings.num_threads); // È·±£ËùÓĞworkerÏß³ÌÇĞ»»³É¹¦
+    wait_for_thread_registration(settings.num_threads); // ç¡®ä¿æ‰€æœ‰workerçº¿ç¨‹åˆ‡æ¢æˆåŠŸ
     pthread_mutex_unlock(&init_lock);
 }
 
@@ -372,7 +372,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 /*
  * Worker thread: main event loop 
  */
- //¹¤×÷Ïß³ÌÊÂ¼şÑ­»·
+ //å·¥ä½œçº¿ç¨‹äº‹ä»¶å¾ªç¯
 static void *worker_libevent(void *arg) {
     LIBEVENT_THREAD *me = arg;
 
@@ -386,16 +386,16 @@ static void *worker_libevent(void *arg) {
      */
     me->item_lock_type = ITEM_LOCK_GRANULAR;
     pthread_setspecific(item_lock_type_key, &me->item_lock_type);
-	/* Í¨ÖªmasterÏß³Ì³õÊ¼»¯Íê±Ï */
+	/* é€šçŸ¥masterçº¿ç¨‹åˆå§‹åŒ–å®Œæ¯• */
     register_thread_initialized();
 
-	/* ½øÈëÊÂ¼şÑ­»·*/
+	/* è¿›å…¥äº‹ä»¶å¾ªç¯*/
     event_base_loop(me->base, 0);
     return NULL;
 }
 
 
-/* workÏß³ÌµÄÊÂ¼ş´¦Àí»Øµ÷£¬½ÓÊÕĞÂÁ¬½ÓÓëÇĞ»»ËøÀàĞÍ
+/* workçº¿ç¨‹çš„äº‹ä»¶å¤„ç†å›è°ƒï¼Œæ¥æ”¶æ–°è¿æ¥ä¸åˆ‡æ¢é”ç±»å‹
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
@@ -413,7 +413,7 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     item = cq_pop(me->new_conn_queue);
 
     if (NULL != item) {
-		// ĞÂÁ¬½Óitem->init_state == conn_new_cmd
+		// æ–°è¿æ¥item->init_state == conn_new_cmd
         conn *c = conn_new(item->sfd, item->init_state, item->event_flags,
                            item->read_buffer_size, item->transport, me->base);
         if (c == NULL) {
@@ -448,7 +448,7 @@ static void thread_libevent_process(int fd, short which, void *arg) {
 /* Which thread we assigned a connection to most recently. */
 static int last_thread = -1;
 
-/* ÓÉÖ÷Ïß³Ìmasterµ÷ÓÃ,½«¿Í»§¶ËÁ¬½Ó·Ö·¢µ½¸÷¸öworker×ÓÏß³Ì
+/* ç”±ä¸»çº¿ç¨‹masterè°ƒç”¨,å°†å®¢æˆ·ç«¯è¿æ¥åˆ†å‘åˆ°å„ä¸ªworkerå­çº¿ç¨‹
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, either during initialization (for UDP) or because
  * of an incoming connection.
@@ -464,8 +464,8 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
         return ;
     }
 
-	// ½«ĞÂÁ¬½ÓµÄsocket·Ö·¢µ½¹¤×÷Ïß³Ì²ÉÓÃµÄÊÇÑ­»·µÄ²ßÂÔ
-	// ÎªÊ²Ã´²»¼Ó¸ö¸ºÔØ¾ùºâ?
+	// å°†æ–°è¿æ¥çš„socketåˆ†å‘åˆ°å·¥ä½œçº¿ç¨‹é‡‡ç”¨çš„æ˜¯å¾ªç¯çš„ç­–ç•¥
+	// ä¸ºä»€ä¹ˆä¸åŠ ä¸ªè´Ÿè½½å‡è¡¡?
     int tid = (last_thread + 1) % settings.num_threads;
 
     LIBEVENT_THREAD *thread = threads + tid;
@@ -477,12 +477,12 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
     item->event_flags = event_flags;
     item->read_buffer_size = read_buffer_size;
     item->transport = transport;
-	// ¼ÓÈëÏàÓ¦µÄworkÏß³Ì¶ÓÁĞ
+	// åŠ å…¥ç›¸åº”çš„workçº¿ç¨‹é˜Ÿåˆ—
     cq_push(thread->new_conn_queue, item);
 
     MEMCACHED_CONN_DISPATCH(sfd, thread->thread_id);
     buf[0] = 'c';
-	// Í¨Öª»½ĞÑ¶ÔÓ¦Ïß³ÌÊÂ¼şÑ­»·
+	// é€šçŸ¥å”¤é†’å¯¹åº”çº¿ç¨‹äº‹ä»¶å¾ªç¯
     if (write(thread->notify_send_fd, buf, 1) != 1) {
         perror("Writing to thread notify pipe");
     }
@@ -825,7 +825,7 @@ void thread_init(int nthreads, struct event_base *main_base) {
     for (i = 0; i < item_lock_count; i++) {
         pthread_mutex_init(&item_locks[i], NULL);
     }
-    pthread_key_create(&item_lock_type_key, NULL); // Ïß³Ì±¾µØ´æ´¢
+    pthread_key_create(&item_lock_type_key, NULL); // çº¿ç¨‹æœ¬åœ°å­˜å‚¨
     pthread_mutex_init(&item_global_lock, NULL);
 
     threads = calloc(nthreads, sizeof(LIBEVENT_THREAD));
@@ -847,7 +847,7 @@ void thread_init(int nthreads, struct event_base *main_base) {
         threads[i].notify_receive_fd = fds[0];
         threads[i].notify_send_fd = fds[1];
 
-		/*³õÊ¼»¯Ïß³Ì¡¢Á¬½Ó¶ÓÁĞ¡¢libeventµÄevent_base*/
+		/*åˆå§‹åŒ–çº¿ç¨‹ã€è¿æ¥é˜Ÿåˆ—ã€libeventçš„event_base*/
         setup_thread(&threads[i]);
         /* Reserve three fds for the libevent base, and two for the pipe */
         stats.reserved_fds += 5;
@@ -855,14 +855,14 @@ void thread_init(int nthreads, struct event_base *main_base) {
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
-		/* ´´½¨¹¤×÷Ïß³Ì*/
+		/* åˆ›å»ºå·¥ä½œçº¿ç¨‹*/
         create_worker(worker_libevent, &threads[i]);
     }
 
     /* Wait for all the threads to set themselves up before returning. */
-	/*Ê¹ÓÃÌõ¼ş±äÁ¿,ËùÓĞÏß³ÌÆô¶¯Íê±Ï²ÅÍË³öÕâÀï*/
+	/*ä½¿ç”¨æ¡ä»¶å˜é‡,æ‰€æœ‰çº¿ç¨‹å¯åŠ¨å®Œæ¯•æ‰é€€å‡ºè¿™é‡Œ*/
     pthread_mutex_lock(&init_lock);
-    wait_for_thread_registration(nthreads); /* µÈ´ıËùÓĞÏß³Ì³õÊ¼»¯Íê³É*/
+    wait_for_thread_registration(nthreads); /* ç­‰å¾…æ‰€æœ‰çº¿ç¨‹åˆå§‹åŒ–å®Œæˆ*/
     pthread_mutex_unlock(&init_lock);
 }
 

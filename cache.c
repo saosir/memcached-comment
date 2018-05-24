@@ -16,9 +16,9 @@ int cache_error = 0;
 
 const int initial_pool_size = 64;
 /*
-ÓÃÓÚ·ÖÅäÄÚ´æ,cache_t·ÖÅäÓë»ØÊÕ»áµ÷ÓÃconstructorºÍdestructor
+ç”¨äºåˆ†é…å†…å­˜,cache_tåˆ†é…ä¸å›æ”¶ä¼šè°ƒç”¨constructorå’Œdestructor
 */
-cache_t* cache_create(const char *name, size_t bufsize /* Ò»¸ö¶ÔÏó´óĞ¡*/,
+cache_t* cache_create(const char *name, size_t bufsize /* ä¸€ä¸ªå¯¹è±¡å¤§å°*/,
 				      size_t align,
                       cache_constructor_t* constructor,
                       cache_destructor_t* destructor) {
